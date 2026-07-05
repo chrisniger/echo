@@ -6,7 +6,6 @@ description = "Echo GPT Desktop"
 
 [package.metadata]
 
-
 [lib]
 name = "echo_gpt_lib"
 crate-type = ["lib", "cdylib", "staticlib"]
@@ -22,3 +21,13 @@ tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+cpal = "0.15"
+reqwest = { version = "0.12", features = ["json"] }
+tokio = { version = "1", features = ["full"] }
+base64 = "0.22"
+windows = { version = "0.61", features = [
+    "Media_Devices",
+    "Win32_Media_Audio",
+    "Win32_Foundation",
+    "Win32_System_Com",
+]}

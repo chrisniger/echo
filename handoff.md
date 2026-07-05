@@ -1003,12 +1003,13 @@ The V2 architecture (Phases 16-22) expands Echo into a multi-device ecosystem by
 
 ### Phase 4 — Audio & Transcription ⚠️ Partial
 
-| Item                        | Status      | Notes                                                                                                  |
-| --------------------------- | ----------- | ------------------------------------------------------------------------------------------------------ |
-| Audio capture (Rust/WASAPI) | ⚠️ Stub     | Tauri `start_recording`/`stop_recording` commands registered, `useMediaRecorder.ts` still browser stub |
-| Whisper.cpp integration     | ❌ Not done | Requires Rust bindings                                                                                 |
-| Transcript UI               | ✅ Done     | Speaker labels, confidence dots, click-to-edit                                                         |
-| Export transcript           | ✅ Done     | `SessionExport.tsx` — TXT, SRT, JSON, PDF                                                              |
+| Item                        | Status         | Notes                                                                                                                   |
+| --------------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Audio capture (cpal/WASAPI) | ✅ Done        | Rust `start_mic_capture`/`stop_capture`/`get_capture_state` commands with background thread capture, device enumeration |
+| Whisper integration         | ⚠️ Partial     | Rust interface + cloud transcription via AI Gateway; local inference requires LLVM/libclang for `bindgen`               |
+| Speaker diarization         | ❌ Not started | Requires Whisper + post-processing                                                                                      |
+| Transcript UI               | ✅ Done        | Speaker labels, confidence dots, click-to-edit                                                                          |
+| Export transcript           | ✅ Done        | `SessionExport.tsx` — TXT, SRT, JSON, PDF                                                                               |
 
 ### Phase 5 — AI Gateway ✅
 
@@ -1224,9 +1225,11 @@ The V2 architecture (Phases 16-22) expands Echo into a multi-device ecosystem by
 
 8. **Install Rust + Cargo** — ✅ Done (rustc 1.96.1, cargo 1.96.1)
 9. **Implement Tauri 2 native shell** — ✅ Done (system tray with menu, native global shortcuts, `lib.rs` with commands + plugins)
-10. **Port audio capture to Rust** — Replace `useMediaRecorder.ts` stub with WASAPI/CoreAudio/PipeWire
-11. **Integrate Whisper.cpp** — Rust bindings for real-time on-device transcription
-12. **Speaker diarization** — Speaker separation with timestamps
+10. **Port audio capture to Rust** — ✅ Done (cpal-based microphone capture via WASAPI, device enumeration, background thread capture, `start_mic_capture`/`stop_capture`/`get_capture_state` Tauri commands)
+11. **Integrate Whisper** — ⚠️ Partial (whisper.rs model interface + transcribe.rs module; local whisper-rs requires LLVM libclang for bindgen; cloud transcription via AI Gateway API is wired up)
+12. **Speaker diarization** — ❌ Not started (requires Whisper + post-processing)
+13. **Integrate Whisper.cpp** — Rust bindings for real-time on-device transcription
+14. **Speaker diarization** — Speaker separation with timestamps
 
 ### Step 3: Complete V1 AI Gateway Gaps
 
