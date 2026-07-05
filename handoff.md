@@ -957,9 +957,10 @@ The V2 architecture (Phases 16-22) expands Echo into a multi-device ecosystem by
 | Cloud API scaffold (Express/SQLite)         | ✅ Done     | Node.js + Express + better-sqlite3 (not PostgreSQL/Redis as spec'd)     |
 | Docker Compose (PostgreSQL, Redis, Mailhog) | ❌ Not done | No Dockerfiles or docker-compose files exist                            |
 | AI Gateway scaffold                         | ✅ Done     | Node.js + Express, provider interface                                   |
-| Docker Compose (all services)               | ❌ Not done | No containerization of any kind                                         |
-| Local dev TLS (mkcert / Caddy)              | ❌ Not done | Not configured                                                          |
-| S3-compatible storage (MinIO)               | ❌ Not done | Not configured                                                          |
+| Dockerfiles (Cloud API + AI Gateway)        | ✅ Done     | Multi-stage builds, `.dockerignore` files                               |
+| docker-compose.yml                          | ✅ Done     | cloud-api, ai-gateway, and MinIO services                               |
+| Local dev TLS (Caddy)                       | ✅ Done     | `Caddyfile` with auto-TLS for localhost:4000,4001,5173                  |
+| S3-compatible storage (MinIO)               | ✅ Done     | Configured in docker-compose.yml                                        |
 
 ### Phase 1 — Authentication & User System ✅
 
@@ -1331,6 +1332,6 @@ The V2 architecture (Phases 16-22) expands Echo into a multi-device ecosystem by
 
 ### File Count
 
-- **~85 TypeScript/TSX source files** across 4 workspace packages (excluding dist/ and config files)
+- **~94 TypeScript/TSX source files** across 5 workspace packages (excluding dist/ and config files)
 - **~18,800 total files** (including node_modules)
 - Every package passes `tsc --noEmit` with exit code 0
