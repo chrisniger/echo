@@ -4,7 +4,12 @@ import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
 import { config } from '../config.js';
 import { getDb } from '../db/index.js';
-import type { AuthTokens, AuthResponse, UserProfile, RegisterRequest } from '@echo-gpt/shared-types';
+import type {
+  AuthTokens,
+  AuthResponse,
+  UserProfile,
+  RegisterRequest,
+} from '@echo-gpt/shared-types';
 
 interface UserRow {
   id: string;
@@ -38,25 +43,35 @@ function parseDuration(duration: string): number {
   if (!match) return 15 * 60 * 1000;
   const value = parseInt(match[1], 10);
   switch (match[2]) {
-    case 's': return value * 1000;
-    case 'm': return value * 60 * 1000;
-    case 'h': return value * 60 * 60 * 1000;
-    case 'd': return value * 24 * 60 * 60 * 1000;
-    default: return 15 * 60 * 1000;
+    case 's':
+      return value * 1000;
+    case 'm':
+      return value * 60 * 1000;
+    case 'h':
+      return value * 60 * 60 * 1000;
+    case 'd':
+      return value * 24 * 60 * 60 * 1000;
+    default:
+      return 15 * 60 * 1000;
   }
 }
 
 function generateAccessToken(userId: string, email: string, role: string): string {
-  return jwt.sign({ userId, email, role }, config.JWT_SECRET, { expiresIn: Math.floor(parseDuration(config.JWT_EXPIRES_IN) / 1000) });
+  return jwt.sign({ userId, email, role }, config.JWT_SECRET, {
+    expiresIn: Math.floor(parseDuration(config.JWT_EXPIRES_IN) / 1000),
+  });
 }
 
 function generateRefreshJwt(userId: string, tokenId: string): string {
-  return jwt.sign({ userId, tokenId }, config.JWT_SECRET, { expiresIn: Math.floor(parseDuration(config.JWT_REFRESH_EXPIRES_IN) / 1000) });
+  return jwt.sign({ userId, tokenId }, config.JWT_SECRET, {
+    expiresIn: Math.floor(parseDuration(config.JWT_REFRESH_EXPIRES_IN) / 1000),
+  });
 }
 
 function generateTokens(userId: string, deviceId?: string): AuthTokens {
   const db = getDb();
-  const user = db.prepare('SELECT id, email, role FROM users WHERE id = ?').get(userId) as { id: string; email: string; role: string } | undefined;
+  const user = db.prepare('SELECT id, email, role FROM users WHERE id = ?').get(userId) as
+    { id: string; email: string; role: string } | undefined;
   if (!user) throw new Error('User not found');
 
   const accessToken = generateAccessToken(user.id, user.email, user.role);
@@ -69,7 +84,7 @@ function generateTokens(userId: string, deviceId?: string): AuthTokens {
   const now = new Date().toISOString();
 
   db.prepare(
-    'INSERT INTO refresh_tokens (id, user_id, token, device_id, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+    'INSERT INTO refresh_tokens (id, user_id, token, device_id, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?)',
   ).run(tokenId, userId, refreshToken, deviceId || null, expiresAt, now);
 
   const accessExpiresMs = parseDuration(config.JWT_EXPIRES_IN);
@@ -94,7 +109,7 @@ export const auth = {
     }
 
     db.prepare(
-      'INSERT INTO users (id, name, email, password, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO users (id, name, email, password, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
     ).run(id, data.name, data.email, hashedPassword, 'user', now, now);
 
     const userRow = db.prepare('SELECT * FROM users WHERE id = ?').get(id) as UserRow;
@@ -105,7 +120,8 @@ export const auth = {
 
   async login(email: string, password: string, deviceId?: string): Promise<AuthResponse> {
     const db = getDb();
-    const userRow = db.prepare('SELECT * FROM users WHERE email = ?').get(email) as UserRow | undefined;
+    const userRow = db.prepare('SELECT * FROM users WHERE email = ?').get(email) as
+      UserRow | undefined;
     if (!userRow) throw new Error('Invalid email or password');
 
     const valid = await bcrypt.compare(password, userRow.password);
@@ -113,7 +129,12 @@ export const auth = {
 
     if (userRow.mfa_enabled && userRow.mfa_secret) {
       const mfaToken = jwt.sign({ userId: userRow.id }, config.JWT_SECRET, { expiresIn: '5m' });
-      return { user: toProfile(userRow), tokens: { accessToken: '', refreshToken: '', expiresAt: 0 }, requiresMfa: true, mfaToken };
+      return {
+        user: toProfile(userRow),
+        tokens: { accessToken: '', refreshToken: '', expiresAt: 0 },
+        requiresMfa: true,
+        mfaToken,
+      };
     }
 
     const tokens = generateTokens(userRow.id, deviceId);
@@ -129,9 +150,10 @@ export const auth = {
       throw new Error('Invalid refresh token');
     }
 
-    const stored = db.prepare(
-      'SELECT * FROM refresh_tokens WHERE id = ? AND user_id = ?'
-    ).get(payload.tokenId, payload.userId) as { id: string; user_id: string; expires_at: string } | undefined;
+    const stored = db
+      .prepare('SELECT * FROM refresh_tokens WHERE id = ? AND user_id = ?')
+      .get(payload.tokenId, payload.userId) as
+      { id: string; user_id: string; expires_at: string } | undefined;
 
     if (!stored) throw new Error('Refresh token not found');
 
@@ -154,7 +176,10 @@ export const auth = {
       return;
     }
     if (payload.tokenId) {
-      db.prepare('DELETE FROM refresh_tokens WHERE id = ? AND user_id = ?').run(payload.tokenId, userId);
+      db.prepare('DELETE FROM refresh_tokens WHERE id = ? AND user_id = ?').run(
+        payload.tokenId,
+        userId,
+      );
     }
   },
 
@@ -165,25 +190,28 @@ export const auth = {
     throw new Error('Not implemented');
   },
 
-  async sendPasswordReset(email: string): Promise<void> {
+  async sendPasswordReset(email: string): Promise<string> {
     const db = getDb();
-    const userRow = db.prepare('SELECT id FROM users WHERE email = ?').get(email) as { id: string } | undefined;
-    if (!userRow) return;
+    const userRow = db.prepare('SELECT id FROM users WHERE email = ?').get(email) as
+      { id: string } | undefined;
+    if (!userRow) return '';
 
     const token = uuidv4();
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
     const now = new Date().toISOString();
 
     db.prepare(
-      'INSERT INTO password_resets (email, token, expires_at, created_at) VALUES (?, ?, ?, ?)'
+      'INSERT INTO password_resets (email, token, expires_at, created_at) VALUES (?, ?, ?, ?)',
     ).run(email, token, expiresAt, now);
+
+    return token;
   },
 
   async confirmPasswordReset(token: string, email: string, password: string): Promise<void> {
     const db = getDb();
-    const row = db.prepare(
-      'SELECT * FROM password_resets WHERE email = ? AND token = ?'
-    ).get(email, token) as { expires_at: string } | undefined;
+    const row = db
+      .prepare('SELECT * FROM password_resets WHERE email = ? AND token = ?')
+      .get(email, token) as { expires_at: string } | undefined;
 
     if (!row) throw new Error('Invalid reset token');
     if (new Date(row.expires_at) < new Date()) throw new Error('Reset token expired');
@@ -191,7 +219,11 @@ export const auth = {
     const hashedPassword = await bcrypt.hash(password, 12);
     const now = new Date().toISOString();
 
-    db.prepare('UPDATE users SET password = ?, updated_at = ? WHERE email = ?').run(hashedPassword, now, email);
+    db.prepare('UPDATE users SET password = ?, updated_at = ? WHERE email = ?').run(
+      hashedPassword,
+      now,
+      email,
+    );
     db.prepare('DELETE FROM password_resets WHERE email = ?').run(email);
   },
 
@@ -207,7 +239,8 @@ export const auth = {
 
   verifyMfa(userId: string, code: string): boolean {
     const db = getDb();
-    const row = db.prepare('SELECT mfa_secret, mfa_enabled FROM users WHERE id = ?').get(userId) as { mfa_secret: string | null; mfa_enabled: number } | undefined;
+    const row = db.prepare('SELECT mfa_secret, mfa_enabled FROM users WHERE id = ?').get(userId) as
+      { mfa_secret: string | null; mfa_enabled: number } | undefined;
     if (!row || !row.mfa_secret) return false;
 
     const valid = verifyTotp(row.mfa_secret, code);
@@ -227,7 +260,8 @@ export const auth = {
     }
 
     const db = getDb();
-    const userRow = db.prepare('SELECT * FROM users WHERE id = ?').get(payload.userId) as UserRow | undefined;
+    const userRow = db.prepare('SELECT * FROM users WHERE id = ?').get(payload.userId) as
+      UserRow | undefined;
     if (!userRow) throw new Error('User not found');
     if (!userRow.mfa_secret) throw new Error('MFA not configured');
 
@@ -245,9 +279,16 @@ function verifyTotp(secret: string, token: string): boolean {
     const counter = time + i;
     const counterBuffer = Buffer.alloc(8);
     counterBuffer.writeBigUInt64BE(BigInt(counter));
-    const hmac = crypto.createHmac('sha1', Buffer.from(secret, 'hex')).update(counterBuffer).digest();
+    const hmac = crypto
+      .createHmac('sha1', Buffer.from(secret, 'hex'))
+      .update(counterBuffer)
+      .digest();
     const offset = hmac[hmac.length - 1] & 0x0f;
-    const code = ((hmac[offset] & 0x7f) << 24) | (hmac[offset + 1] << 16) | (hmac[offset + 2] << 8) | hmac[offset + 3];
+    const code =
+      ((hmac[offset] & 0x7f) << 24) |
+      (hmac[offset + 1] << 16) |
+      (hmac[offset + 2] << 8) |
+      hmac[offset + 3];
     const otp = String(code % 1000000).padStart(6, '0');
     if (otp === token) return true;
   }

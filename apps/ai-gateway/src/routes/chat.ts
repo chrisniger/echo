@@ -69,7 +69,7 @@ export function createChatRouter(routerInstance: AiRouter, cache?: PromptCache):
   router.post('/chat', async (req, res) => {
     try {
       const parsed = chatRequestSchema.parse(req.body);
-      const result = await routerInstance.chat(parsed, req.signal);
+      const result = await routerInstance.chat(parsed, (req as any).signal);
       res.json(result);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -89,7 +89,7 @@ export function createChatRouter(routerInstance: AiRouter, cache?: PromptCache):
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
 
-      const stream = routerInstance.chatStream(parsed, req.signal);
+      const stream = routerInstance.chatStream(parsed, (req as any).signal);
 
       for await (const chunk of stream) {
         res.write(`data: ${JSON.stringify(chunk)}\n\n`);

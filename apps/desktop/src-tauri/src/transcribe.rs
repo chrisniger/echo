@@ -44,20 +44,3 @@ pub async fn transcribe_via_gateway(
         .await
         .map_err(|e| format!("Failed to parse transcription result: {}", e))
 }
-
-pub async fn transcribe_locally(
-    audio_data: &[f32],
-    sample_rate: u32,
-    _model_path: &str,
-) -> Result<TranscriptionResult, String> {
-    let duration = audio_data.len() as f64 / sample_rate as f64;
-
-    // Placeholder — local Whisper inference requires whisper-rs with LLVM/bindgen
-    // Install LLVM from https://github.com/llvm/llvm-project/releases to enable
-    Ok(TranscriptionResult {
-        segments: vec![],
-        full_text: String::new(),
-        language: "en".into(),
-        duration_secs: duration,
-    })
-}

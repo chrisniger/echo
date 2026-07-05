@@ -18,8 +18,8 @@ const app = express();
 const router = new AiRouter();
 const cache = new PromptCache();
 
-app.use(helmet());
-app.use(cors({ origin: config.corsOrigin }));
+app.use(helmet() as any);
+app.use(cors({ origin: config.corsOrigin }) as any);
 app.use(express.json({ limit: '10mb' }));
 
 const providers = [

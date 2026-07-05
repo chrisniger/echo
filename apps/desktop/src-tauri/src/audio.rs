@@ -11,11 +11,6 @@ impl StreamHandle {
     fn new(stream: cpal::Stream) -> Self {
         Self(Box::into_raw(Box::new(stream)))
     }
-    fn take(self) -> cpal::Stream {
-        let ptr = self.0;
-        std::mem::forget(self);
-        *unsafe { Box::from_raw(ptr) }
-    }
 }
 
 impl Drop for StreamHandle {
@@ -165,10 +160,6 @@ impl AudioCapture {
             .lock()
             .map(|mut b| std::mem::take(&mut *b))
             .map_err(|e| e.to_string())
-    }
-
-    pub fn is_capturing(&self) -> bool {
-        self.is_capturing.load(Ordering::SeqCst)
     }
 
     pub fn sample_rate(&self) -> u32 {

@@ -50,13 +50,6 @@
       "active": true,
       "endpoints": ["http://localhost:4000/api/updates"],
       "pubkey": ""
-    },
-    "global-shortcut": {
-      "shortcuts": {
-        "hideApp": "Ctrl+Shift+H",
-        "askEcho": "Ctrl+Shift+Space",
-        "screenshot": "Ctrl+Shift+S"
-      }
     }
   }
 }

@@ -177,4 +177,13 @@ CREATE TABLE IF NOT EXISTS cv_library (
   created_at TEXT NOT NULL,
   updated_at TEXT
 );
+
+CREATE TABLE IF NOT EXISTS email_logs (
+  id TEXT PRIMARY KEY,
+  recipient TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  body TEXT,
+  sent_at TEXT,
+  created_at TEXT NOT NULL
+);
 `;

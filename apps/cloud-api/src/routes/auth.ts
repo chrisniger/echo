@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import { Router } from 'express';
 import { z } from 'zod';
 import { auth } from '../services/auth.js';
+import { emailService } from '../services/email.js';
 import { requireAuth } from '../middleware/auth.js';
 import { rateLimit } from '../middleware/rateLimit.js';
 import { getDb } from '../db/index.js';
@@ -69,6 +70,7 @@ const updateProfileSchema = z.object({
 router.post('/register', authRateLimit, async (req: Request, res: Response) => {
   const parsed = registerSchema.parse(req.body);
   const result = await auth.register(parsed);
+  await emailService.sendVerificationEmail(parsed.email, result.user.id);
   res.status(201).json(result);
 });
 
@@ -96,7 +98,10 @@ router.post('/verify-email', (_req: Request, res: Response) => {
 
 router.post('/forgot-password', async (req: Request, res: Response) => {
   const parsed = forgotPasswordSchema.parse(req.body);
-  await auth.sendPasswordReset(parsed.email);
+  const token = await auth.sendPasswordReset(parsed.email);
+  if (token) {
+    await emailService.sendPasswordResetEmail(parsed.email, token);
+  }
   res.json({ message: 'If the email exists, a reset link has been sent' });
 });
 
