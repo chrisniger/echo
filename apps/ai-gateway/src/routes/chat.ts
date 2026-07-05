@@ -1,22 +1,31 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { AiRouter } from '../services/router.js';
+import type { AiRouter } from '../services/router.js';
 import { ContextAssembler } from '../services/context-assembler.js';
 import { TokenCounter } from '../services/token-counter.js';
 import type { AiModel, ChatMessage } from '@echo-gpt/shared-types';
 
 const chatRequestSchema = z.object({
   model: z.enum([
-    'gpt-4o', 'gpt-4-turbo', 'gpt-3.5-turbo',
-    'claude-3-opus', 'claude-3-sonnet', 'claude-3-haiku',
-    'gemini-2.0-flash', 'gemini-2.0-pro',
-    'deepseek-chat', 'deepseek-coder',
-    'ollama/llama3', 'ollama/mixtral',
+    'gpt-4o',
+    'gpt-4-turbo',
+    'gpt-3.5-turbo',
+    'claude-3-opus',
+    'claude-3-sonnet',
+    'claude-3-haiku',
+    'gemini-2.0-flash',
+    'gemini-2.0-pro',
+    'deepseek-chat',
+    'deepseek-coder',
+    'ollama/llama3',
+    'ollama/mixtral',
   ]),
-  messages: z.array(z.object({
-    role: z.enum(['system', 'user', 'assistant']),
-    content: z.string(),
-  })),
+  messages: z.array(
+    z.object({
+      role: z.enum(['system', 'user', 'assistant']),
+      content: z.string(),
+    }),
+  ),
   stream: z.boolean().optional().default(false),
   temperature: z.number().min(0).max(2).optional(),
   maxTokens: z.number().min(1).max(128000).optional(),
@@ -27,17 +36,25 @@ const contextSchema = z.object({
   cv: z.string().optional(),
   jobDescription: z.string().optional(),
   documents: z.array(z.object({ name: z.string(), content: z.string() })).optional(),
-  transcript: z.array(z.object({
-    speaker: z.string(),
-    text: z.string(),
-    timestamp: z.number(),
-  })).optional(),
+  transcript: z
+    .array(
+      z.object({
+        speaker: z.string(),
+        text: z.string(),
+        timestamp: z.number(),
+      }),
+    )
+    .optional(),
   screenshots: z.array(z.object({ url: z.string(), ocrText: z.string().optional() })).optional(),
   images: z.array(z.object({ url: z.string(), description: z.string().optional() })).optional(),
-  conversationHistory: z.array(z.object({
-    role: z.enum(['system', 'user', 'assistant']),
-    content: z.string(),
-  })).optional(),
+  conversationHistory: z
+    .array(
+      z.object({
+        role: z.enum(['system', 'user', 'assistant']),
+        content: z.string(),
+      }),
+    )
+    .optional(),
   customContext: z.string().optional(),
   language: z.string().optional(),
 });
@@ -85,7 +102,9 @@ export function createChatRouter(routerInstance: AiRouter): Router {
         const message = err instanceof Error ? err.message : 'Internal server error';
         res.status(500).json({ error: message });
       } else {
-        res.write(`data: ${JSON.stringify({ error: err instanceof Error ? err.message : 'Stream error' })}\n\n`);
+        res.write(
+          `data: ${JSON.stringify({ error: err instanceof Error ? err.message : 'Stream error' })}\n\n`,
+        );
         res.end();
       }
     }

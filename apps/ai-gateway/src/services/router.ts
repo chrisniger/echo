@@ -1,5 +1,5 @@
 import type { AiModel, ChatRequest, ChatResponse, ChatChunk } from '@echo-gpt/shared-types';
-import { AiProvider } from '../providers/index.js';
+import type { AiProvider } from '../providers/index.js';
 
 interface CircuitState {
   failures: number;
@@ -40,7 +40,12 @@ export class AiRouter {
       })
       .sort((a, b) => {
         const priority: Record<string, number> = {
-          openai: 1, anthropic: 2, gemini: 3, deepseek: 4, openrouter: 5, ollama: 6,
+          openai: 1,
+          anthropic: 2,
+          gemini: 3,
+          deepseek: 4,
+          openrouter: 5,
+          ollama: 6,
         };
         return (priority[a.name] ?? 99) - (priority[b.name] ?? 99);
       });
@@ -56,7 +61,10 @@ export class AiRouter {
     const primary = this.getPreferredProvider(request.model);
     const errors: Error[] = [];
 
-    const providers = [primary, ...Array.from(this.providers.values()).filter((p) => p.name !== primary.name)];
+    const providers = [
+      primary,
+      ...Array.from(this.providers.values()).filter((p) => p.name !== primary.name),
+    ];
 
     for (const provider of providers) {
       if (!provider.models.includes(request.model)) continue;
@@ -77,7 +85,10 @@ export class AiRouter {
 
   async *chatStream(request: ChatRequest, signal?: AbortSignal): AsyncGenerator<ChatChunk> {
     const primary = this.getPreferredProvider(request.model);
-    const providers = [primary, ...Array.from(this.providers.values()).filter((p) => p.name !== primary.name)];
+    const providers = [
+      primary,
+      ...Array.from(this.providers.values()).filter((p) => p.name !== primary.name),
+    ];
     let lastError: Error | null = null;
 
     for (const provider of providers) {

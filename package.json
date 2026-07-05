@@ -6,6 +6,7 @@
     "build": "pnpm -r build",
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
+    "prepare": "husky",
     "prepare": "husky"
   },
   "devDependencies": {
@@ -16,6 +17,15 @@
     "lint-staged": "^17.0.8",
     "prettier": "^3.4.0",
     "typescript": "^5.7.0"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yaml,yml}": [
+      "prettier --write"
+    ]
   },
   "engines": {
     "node": ">=22.0.0"

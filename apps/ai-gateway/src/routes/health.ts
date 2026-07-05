@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { AiRouter } from '../services/router.js';
+import type { AiRouter } from '../services/router.js';
 
 export function createHealthRouter(routerInstance: AiRouter): Router {
   const router = Router();
