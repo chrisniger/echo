@@ -1,0 +1,24 @@
+{
+  "default": {
+    "identifier": "default",
+    "description": "Default permissions for Echo GPT Desktop",
+    "local": true,
+    "windows": ["main"],
+    "permissions": [
+      "core:default",
+      "shell:allow-open",
+      "dialog:default",
+      "fs:default",
+      "global-shortcut:default",
+      {
+        "identifier": "global-shortcut:allow-register",
+        "allow": [
+          { "shortcut": "Ctrl+Shift+H" },
+          { "shortcut": "Ctrl+Shift+Space" },
+          { "shortcut": "Ctrl+Shift+Q" },
+          { "shortcut": "Ctrl+Shift+S" }
+        ]
+      }
+    ]
+  }
+}

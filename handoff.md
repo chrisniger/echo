@@ -980,16 +980,18 @@ The V2 architecture (Phases 16-22) expands Echo into a multi-device ecosystem by
 
 ### Phase 2 — Core Desktop Shell ✅
 
-| Item                      | Status      | Notes                                              |
-| ------------------------- | ----------- | -------------------------------------------------- |
-| App shell with sidebar    | ✅ Done     | `Layout.tsx` with nav                              |
-| Dashboard page            | ✅ Done     | Stats, recent sessions, quick actions              |
-| Settings page             | ✅ Done     | All sections                                       |
-| Global error boundary     | ✅ Done     | `ErrorBoundary.tsx`                                |
-| Loading/skeleton patterns | ✅ Done     | `LoadingScreen.tsx`, `skeleton.tsx`                |
-| Floating Assistant        | ✅ Done     | `FloatingAssistant.tsx` — draggable, tabs, opacity |
-| Global shortcuts          | ✅ Done     | `useKeyboardShortcuts.ts` hook                     |
-| System tray               | ❌ Not done | Requires Tauri Rust backend                        |
+| Item                      | Status  | Notes                                                                                   |
+| ------------------------- | ------- | --------------------------------------------------------------------------------------- |
+| App shell with sidebar    | ✅ Done | `Layout.tsx` with nav                                                                   |
+| Dashboard page            | ✅ Done | Stats, recent sessions, quick actions                                                   |
+| Settings page             | ✅ Done | All sections                                                                            |
+| Global error boundary     | ✅ Done | `ErrorBoundary.tsx`                                                                     |
+| Loading/skeleton patterns | ✅ Done | `LoadingScreen.tsx`, `skeleton.tsx`                                                     |
+| Floating Assistant        | ✅ Done | `FloatingAssistant.tsx` — draggable, tabs, opacity                                      |
+| Global shortcuts          | ✅ Done | Rust `tauri-plugin-global-shortcut` (native)                                            |
+| System tray               | ✅ Done | Rust tray icon with menu (New Session, Pause/Resume, Quit) + left-click show            |
+| Tauri 2 Rust backend      | ✅ Done | `lib.rs` with commands, plugins (shell, dialog, fs, global-shortcut)                    |
+| Audio capture commands    | ⚠️ Stub | `start_recording`/`stop_recording`/`take_screenshot` registered, pending implementation |
 
 ### Phase 3 — Session Management ✅
 
@@ -1001,12 +1003,12 @@ The V2 architecture (Phases 16-22) expands Echo into a multi-device ecosystem by
 
 ### Phase 4 — Audio & Transcription ⚠️ Partial
 
-| Item                        | Status      | Notes                                                                         |
-| --------------------------- | ----------- | ----------------------------------------------------------------------------- |
-| Audio capture (Rust/WASAPI) | ❌ Not done | Requires Tauri + Rust — `useMediaRecorder.ts` is a browser MediaRecorder stub |
-| Whisper.cpp integration     | ❌ Not done | Requires Rust bindings                                                        |
-| Transcript UI               | ✅ Done     | Speaker labels, confidence dots, click-to-edit                                |
-| Export transcript           | ✅ Done     | `SessionExport.tsx` — TXT, SRT, JSON, PDF                                     |
+| Item                        | Status      | Notes                                                                                                  |
+| --------------------------- | ----------- | ------------------------------------------------------------------------------------------------------ |
+| Audio capture (Rust/WASAPI) | ⚠️ Stub     | Tauri `start_recording`/`stop_recording` commands registered, `useMediaRecorder.ts` still browser stub |
+| Whisper.cpp integration     | ❌ Not done | Requires Rust bindings                                                                                 |
+| Transcript UI               | ✅ Done     | Speaker labels, confidence dots, click-to-edit                                                         |
+| Export transcript           | ✅ Done     | `SessionExport.tsx` — TXT, SRT, JSON, PDF                                                              |
 
 ### Phase 5 — AI Gateway ✅
 
@@ -1220,8 +1222,8 @@ The V2 architecture (Phases 16-22) expands Echo into a multi-device ecosystem by
 
 ### Step 2: Complete V1 Desktop Native Features (Requires Rust)
 
-8. **Install Rust + Cargo** — Prerequisite for Tauri 2 native shell
-9. **Implement Tauri 2 native shell** — System tray, native global shortcuts, floating window (always-on-top)
+8. **Install Rust + Cargo** — ✅ Done (rustc 1.96.1, cargo 1.96.1)
+9. **Implement Tauri 2 native shell** — ✅ Done (system tray with menu, native global shortcuts, `lib.rs` with commands + plugins)
 10. **Port audio capture to Rust** — Replace `useMediaRecorder.ts` stub with WASAPI/CoreAudio/PipeWire
 11. **Integrate Whisper.cpp** — Rust bindings for real-time on-device transcription
 12. **Speaker diarization** — Speaker separation with timestamps
