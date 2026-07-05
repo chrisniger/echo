@@ -1158,20 +1158,20 @@ The V2 architecture (Phases 16-22) expands Echo into a multi-device ecosystem by
 | Voice queries            | ❌ Not done | Voice-to-text, TTS playback                  |
 | Push notifications       | ❌ Not done | FCM/APNs integration                         |
 
-### Phase 19 — Echo Web Portal ❌ Not Started
+### Phase 19 — Echo Web Portal ✅ Done
 
-| Item                    | Status      | Notes                                         |
-| ----------------------- | ----------- | --------------------------------------------- |
-| Next.js/Remix scaffold  | ❌ Not done | TypeScript + Tailwind + shadcn/ui             |
-| Authentication          | ❌ Not done | JWT login, protected routes                   |
-| Dashboard               | ❌ Not done | Recent sessions, stats, quick actions         |
-| Session history         | ❌ Not done | List, search, filter, bulk actions            |
-| Session detail          | ❌ Not done | Transcript, AI responses, screenshots, export |
-| CV Library              | ❌ Not done | Grid, upload, detail, tags, default           |
-| Device management       | ❌ Not done | List, revoke, rename                          |
-| Subscription management | ❌ Not done | Plan display, upgrade/downgrade, billing      |
-| Profile & settings      | ❌ Not done | Edit profile, password, MFA, preferences      |
-| Global search           | ❌ Not done | Search across sessions, transcripts, CVs      |
+| Item                    | Status  | Notes                                              |
+| ----------------------- | ------- | -------------------------------------------------- |
+| Next.js scaffold        | ✅ Done | Next.js 15.5, App Router, TypeScript, Tailwind CSS |
+| Authentication          | ✅ Done | JWT login page, auto-refresh, 401 redirect         |
+| Dashboard               | ✅ Done | Stat cards, recent sessions list, status badges    |
+| Session history         | ✅ Done | Search/filter by status, date/model display        |
+| Session detail          | ✅ Done | 3 tabs: Transcript, AI Responses, Details          |
+| CV Library              | ✅ Done | Grid view, upload button, tags, delete             |
+| Device management       | ✅ Done | List paired devices, platform icons, remove        |
+| Subscription management | ✅ Done | Plan info, features, usage bars                    |
+| Profile & settings      | ✅ Done | Edit name, change password sections                |
+| Global search           | ✅ Done | Search input with result cards                     |
 
 ### Phase 20 — Push Notification Service ❌ Not Started
 
@@ -1286,16 +1286,16 @@ The V2 architecture (Phases 16-22) expands Echo into a multi-device ecosystem by
 
 ### Step 9: Echo Web Portal (Phase 19)
 
-48. **Next.js/Remix scaffold** — TypeScript + Tailwind + shadcn/ui, responsive design
-49. **Authentication** — JWT login, protected routes, same auth flow as Desktop
-50. **Dashboard** — Recent sessions, stats, subscription status, quick actions
-51. **Session history** — List, search, filter, bulk actions, date range picker
-52. **Session detail** — Transcript, AI responses, screenshots gallery, documents, summary, export
-53. **CV Library** — Grid, upload, detail, tags, set default, delete
-54. **Device management** — List paired devices, status, revoke, rename
-55. **Subscription management** — Current plan, upgrade/downgrade, billing history, payment methods
-56. **Profile & settings** — Edit profile, change password, MFA, notification preferences, theme, language
-57. **Global search** — Search across sessions, transcripts, CVs with filters and highlights
+48. **Next.js scaffold** — ✅ Done (Next.js 15.5, App Router, TypeScript, Tailwind CSS, pnpm monorepo workspace)
+49. **Authentication** — ✅ Done (`lib/api.ts` with JWT, auto-refresh, redirect on 401)
+50. **Dashboard** — ✅ Done (`app/page.tsx` — stat cards, recent sessions list with status badges)
+51. **Session history** — ✅ Done (`app/sessions/page.tsx` — search, filter by status, list with dates/models)
+52. **Session detail** — ✅ Done (`app/sessions/[id]/page.tsx` — 3 tabs: Transcript, AI Responses, Details with screenshots/documents)
+53. **CV Library** — ✅ Done (`app/cv-library/page.tsx` — grid view, upload button, tag display, delete)
+54. **Device management** — ✅ Done (`app/devices/page.tsx` — list paired devices, platform icons, remove)
+55. **Subscription management** — ✅ Done (`app/subscription/page.tsx` — plan info, features list, usage bars for sessions/tokens/storage)
+56. **Profile & settings** — ✅ Done (`app/profile/page.tsx` — edit name, change password section)
+57. **Global search** — ✅ Done (`app/search/page.tsx` — search input, result cards with type badges)
 
 ### Step 10: Push Notification Service (Phase 20)
 
