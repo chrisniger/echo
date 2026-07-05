@@ -1,0 +1,13 @@
+import dotenv from 'dotenv';
+import { JWT, CLOUD_API, DESKTOP } from '@echo-gpt/shared-config';
+
+dotenv.config();
+
+export const config = {
+  PORT: parseInt(process.env.PORT || String(CLOUD_API.DEFAULT_PORT), 10),
+  JWT_SECRET: process.env.JWT_SECRET || JWT.DEFAULT_SECRET,
+  JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || JWT.DEFAULT_ACCESS_EXPIRES_IN,
+  JWT_REFRESH_EXPIRES_IN: process.env.JWT_REFRESH_EXPIRES_IN || JWT.DEFAULT_REFRESH_EXPIRES_IN,
+  DB_PATH: process.env.DB_PATH || './data/echo-gpt.db',
+  CORS_ORIGIN: process.env.CORS_ORIGIN || DESKTOP.DEV_URL,
+};
