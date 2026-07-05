@@ -11,6 +11,8 @@ import { createNotificationsRouter } from './routes/notifications.js';
 import { createAnalyticsRouter } from './routes/analytics.js';
 import { createAdminRouter } from './routes/admin.js';
 import pairingRoutes from './routes/pairing.js';
+import { createPushRouter } from './routes/push.js';
+import { createSyncRouter } from './routes/sync.js';
 import { getDb } from './db/index.js';
 import { WsGateway } from './websocket/gateway.js';
 
@@ -28,6 +30,8 @@ app.use('/api', createNotificationsRouter());
 app.use('/api', createAnalyticsRouter());
 app.use('/api', createAdminRouter());
 app.use('/api', pairingRoutes);
+app.use('/api', createPushRouter());
+app.use('/api', createSyncRouter());
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

@@ -3,19 +3,28 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { auth } from '../services/auth.js';
 import { requireAuth } from '../middleware/auth.js';
+import { rateLimit } from '../middleware/rateLimit.js';
 import { getDb } from '../db/index.js';
 
 const router = Router();
 
-const registerSchema = z.object({
-  name: z.string().min(1).max(100),
-  email: z.string().email(),
-  password: z.string().min(8).max(128),
-  passwordConfirmation: z.string(),
-}).refine(data => data.password === data.passwordConfirmation, {
-  message: 'Passwords do not match',
-  path: ['passwordConfirmation'],
+const authRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: 'Too many auth attempts',
 });
+
+const registerSchema = z
+  .object({
+    name: z.string().min(1).max(100),
+    email: z.string().email(),
+    password: z.string().min(8).max(128),
+    passwordConfirmation: z.string(),
+  })
+  .refine((data) => data.password === data.passwordConfirmation, {
+    message: 'Passwords do not match',
+    path: ['passwordConfirmation'],
+  });
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -35,15 +44,17 @@ const forgotPasswordSchema = z.object({
   email: z.string().email(),
 });
 
-const resetPasswordSchema = z.object({
-  token: z.string().min(1),
-  email: z.string().email(),
-  password: z.string().min(8).max(128),
-  passwordConfirmation: z.string(),
-}).refine(data => data.password === data.passwordConfirmation, {
-  message: 'Passwords do not match',
-  path: ['passwordConfirmation'],
-});
+const resetPasswordSchema = z
+  .object({
+    token: z.string().min(1),
+    email: z.string().email(),
+    password: z.string().min(8).max(128),
+    passwordConfirmation: z.string(),
+  })
+  .refine((data) => data.password === data.passwordConfirmation, {
+    message: 'Passwords do not match',
+    path: ['passwordConfirmation'],
+  });
 
 const mfaVerifySchema = z.object({
   code: z.string().length(6),
@@ -55,13 +66,13 @@ const updateProfileSchema = z.object({
   avatarUrl: z.string().url().optional().nullable(),
 });
 
-router.post('/register', async (req: Request, res: Response) => {
+router.post('/register', authRateLimit, async (req: Request, res: Response) => {
   const parsed = registerSchema.parse(req.body);
   const result = await auth.register(parsed);
   res.status(201).json(result);
 });
 
-router.post('/login', async (req: Request, res: Response) => {
+router.post('/login', authRateLimit, async (req: Request, res: Response) => {
   const parsed = loginSchema.parse(req.body);
   const result = await auth.login(parsed.email, parsed.password, parsed.deviceId);
   res.json(result);
@@ -187,19 +198,23 @@ router.put('/me', requireAuth, async (req: Request, res: Response) => {
 router.get('/devices', requireAuth, (req: Request, res: Response) => {
   const db = getDb();
   const devices = db.prepare('SELECT * FROM devices WHERE user_id = ?').all(req.user!.id) as any[];
-  res.json(devices.map(d => ({
-    id: d.id,
-    name: d.name,
-    platform: d.platform,
-    lastIp: d.last_ip,
-    lastUsedAt: d.last_used_at,
-    isCurrentDevice: false,
-  })));
+  res.json(
+    devices.map((d) => ({
+      id: d.id,
+      name: d.name,
+      platform: d.platform,
+      lastIp: d.last_ip,
+      lastUsedAt: d.last_used_at,
+      isCurrentDevice: false,
+    })),
+  );
 });
 
 router.delete('/devices/:id', requireAuth, (req: Request, res: Response) => {
   const db = getDb();
-  const result = db.prepare('DELETE FROM devices WHERE id = ? AND user_id = ?').run(req.params.id, req.user!.id);
+  const result = db
+    .prepare('DELETE FROM devices WHERE id = ? AND user_id = ?')
+    .run(req.params.id, req.user!.id);
   if (result.changes === 0) {
     res.status(404).json({ error: 'Device not found' });
     return;
