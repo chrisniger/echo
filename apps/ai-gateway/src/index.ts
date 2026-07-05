@@ -3,16 +3,20 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { config } from './config.js';
 import { AiRouter } from './services/router.js';
+import { PromptCache } from './services/cache.js';
 import { OpenAIProvider } from './providers/openai.js';
 import { AnthropicProvider } from './providers/anthropic.js';
 import { GeminiProvider } from './providers/gemini.js';
 import { DeepSeekProvider } from './providers/deepseek.js';
+import { OpenRouterProvider } from './providers/openrouter.js';
 import { OllamaProvider } from './providers/ollama.js';
 import { createHealthRouter } from './routes/health.js';
 import { createChatRouter } from './routes/chat.js';
+import { createAdminRouter } from './routes/admin.js';
 
 const app = express();
 const router = new AiRouter();
+const cache = new PromptCache();
 
 app.use(helmet());
 app.use(cors({ origin: config.corsOrigin }));
@@ -23,6 +27,7 @@ const providers = [
   { name: 'Anthropic', ctor: AnthropicProvider, key: config.anthropic.apiKey },
   { name: 'Gemini', ctor: GeminiProvider, key: config.gemini.apiKey },
   { name: 'DeepSeek', ctor: DeepSeekProvider, key: config.deepseek.apiKey },
+  { name: 'OpenRouter', ctor: OpenRouterProvider, key: config.openrouter.apiKey },
   { name: 'Ollama', ctor: OllamaProvider, key: null },
 ];
 
@@ -40,10 +45,12 @@ for (const p of providers) {
 }
 
 const healthRouter = createHealthRouter(router);
-const chatRouter = createChatRouter(router);
+const chatRouter = createChatRouter(router, cache);
+const adminRouter = createAdminRouter(router, cache);
 
 app.use('/api', healthRouter);
 app.use('/api', chatRouter);
+app.use('/api', adminRouter);
 
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('Unhandled error:', err);

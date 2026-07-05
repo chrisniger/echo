@@ -7,11 +7,22 @@ interface CircuitState {
   isOpen: boolean;
 }
 
+interface LoadBalanceState {
+  requestCount: number;
+  lastUsedAt: number;
+}
+
 export class AiRouter {
   private providers: Map<string, AiProvider> = new Map();
   private circuitBreakers: Map<string, CircuitState> = new Map();
+  private loadBalancers: Map<string, LoadBalanceState> = new Map();
   private readonly maxFailures = 3;
   private readonly cooldownMs = 30000;
+  private loadBalanceMode: 'failover' | 'round-robin' | 'least-loaded' = 'failover';
+
+  setLoadBalanceMode(mode: 'failover' | 'round-robin' | 'least-loaded'): void {
+    this.loadBalanceMode = mode;
+  }
 
   register(provider: AiProvider): void {
     this.providers.set(provider.name, provider);
@@ -20,25 +31,38 @@ export class AiRouter {
       lastFailureAt: 0,
       isOpen: false,
     });
+    this.loadBalancers.set(provider.name, {
+      requestCount: 0,
+      lastUsedAt: 0,
+    });
+  }
+
+  private getAvailableForModel(model: AiModel): AiProvider[] {
+    return Array.from(this.providers.values()).filter((p) => {
+      if (!p.models.includes(model)) return false;
+      const cb = this.circuitBreakers.get(p.name);
+      if (!cb) return true;
+      if (cb.isOpen) {
+        if (Date.now() - cb.lastFailureAt > this.cooldownMs) {
+          cb.isOpen = false;
+          cb.failures = 0;
+          return true;
+        }
+        return false;
+      }
+      return true;
+    });
   }
 
   getPreferredProvider(model: AiModel): AiProvider {
-    const available = Array.from(this.providers.values())
-      .filter((p) => {
-        if (!p.models.includes(model)) return false;
-        const cb = this.circuitBreakers.get(p.name);
-        if (!cb) return true;
-        if (cb.isOpen) {
-          if (Date.now() - cb.lastFailureAt > this.cooldownMs) {
-            cb.isOpen = false;
-            cb.failures = 0;
-            return true;
-          }
-          return false;
-        }
-        return true;
-      })
-      .sort((a, b) => {
+    const available = this.getAvailableForModel(model);
+
+    if (available.length === 0) {
+      throw new Error(`No available provider for model: ${model}`);
+    }
+
+    if (this.loadBalanceMode === 'failover') {
+      return available.sort((a, b) => {
         const priority: Record<string, number> = {
           openai: 1,
           anthropic: 2,
@@ -48,13 +72,39 @@ export class AiRouter {
           ollama: 6,
         };
         return (priority[a.name] ?? 99) - (priority[b.name] ?? 99);
-      });
-
-    if (available.length === 0) {
-      throw new Error(`No available provider for model: ${model}`);
+      })[0];
     }
 
-    return available[0];
+    if (this.loadBalanceMode === 'round-robin') {
+      const sorted = [...available].sort((a, b) => {
+        const stateA = this.loadBalancers.get(a.name);
+        const stateB = this.loadBalancers.get(b.name);
+        return (stateA?.requestCount ?? 0) - (stateB?.requestCount ?? 0);
+      });
+
+      const chosen = sorted[0];
+      this.incrementLoad(chosen.name);
+      return chosen;
+    }
+
+    // least-loaded
+    const sorted = [...available].sort((a, b) => {
+      const stateA = this.loadBalancers.get(a.name);
+      const stateB = this.loadBalancers.get(b.name);
+      return (stateA?.requestCount ?? 0) - (stateB?.requestCount ?? 0);
+    });
+
+    const chosen = sorted[0];
+    this.incrementLoad(chosen.name);
+    return chosen;
+  }
+
+  private incrementLoad(providerName: string): void {
+    const state = this.loadBalancers.get(providerName);
+    if (state) {
+      state.requestCount++;
+      state.lastUsedAt = Date.now();
+    }
   }
 
   async chat(request: ChatRequest, signal?: AbortSignal): Promise<ChatResponse> {
@@ -134,6 +184,20 @@ export class AiRouter {
       provider: p.name,
       models: p.models,
     }));
+  }
+
+  getLoadStats(): Record<string, { requestCount: number; failures: number; isOpen: boolean }> {
+    const stats: Record<string, { requestCount: number; failures: number; isOpen: boolean }> = {};
+    for (const [name] of this.providers) {
+      const lb = this.loadBalancers.get(name);
+      const cb = this.circuitBreakers.get(name);
+      stats[name] = {
+        requestCount: lb?.requestCount ?? 0,
+        failures: cb?.failures ?? 0,
+        isOpen: cb?.isOpen ?? false,
+      };
+    }
+    return stats;
   }
 
   async checkHealth(): Promise<Record<string, boolean>> {

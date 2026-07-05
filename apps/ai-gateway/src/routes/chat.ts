@@ -1,8 +1,9 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import type { AiRouter } from '../services/router.js';
-import { ContextAssembler } from '../services/context-assembler.js';
+import { ContextAssembler, SYSTEM_PROMPT_BASE } from '../services/context-assembler.js';
 import { TokenCounter } from '../services/token-counter.js';
+import type { PromptCache } from '../services/cache.js';
 import type { AiModel, ChatMessage } from '@echo-gpt/shared-types';
 
 const chatRequestSchema = z.object({
@@ -17,6 +18,7 @@ const chatRequestSchema = z.object({
     'gemini-2.0-pro',
     'deepseek-chat',
     'deepseek-coder',
+    'openrouter/auto',
     'ollama/llama3',
     'ollama/mixtral',
   ]),
@@ -59,7 +61,7 @@ const contextSchema = z.object({
   language: z.string().optional(),
 });
 
-export function createChatRouter(routerInstance: AiRouter): Router {
+export function createChatRouter(routerInstance: AiRouter, cache?: PromptCache): Router {
   const router = Router();
   const contextAssembler = new ContextAssembler();
   const tokenCounter = new TokenCounter();
@@ -113,8 +115,22 @@ export function createChatRouter(routerInstance: AiRouter): Router {
   router.post('/chat/context', (req, res) => {
     try {
       const parsed = contextSchema.parse(req.body);
+
+      if (cache) {
+        const cached = cache.get(SYSTEM_PROMPT_BASE, parsed as Record<string, unknown>);
+        if (cached) {
+          const tokenCount = tokenCounter.countMessages(cached);
+          res.json({ messages: cached, tokenCount, messageCount: cached.length, cached: true });
+          return;
+        }
+      }
+
       const messages = contextAssembler.assemble(parsed);
       const tokenCount = tokenCounter.countMessages(messages);
+
+      if (cache) {
+        cache.set(SYSTEM_PROMPT_BASE, parsed as Record<string, unknown>, messages);
+      }
 
       res.json({
         messages,

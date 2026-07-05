@@ -1,6 +1,9 @@
 import type { ContextPayload, ChatMessage } from '@echo-gpt/shared-types';
 
-const SYSTEM_PROMPT_BASE = 'You are Echo, an AI assistant for professional interviews, meetings, and coding assessments. You help users by providing real-time assistance during sessions. You are knowledgeable, concise, and professional.';
+const SYSTEM_PROMPT_BASE =
+  'You are Echo, an AI assistant for professional interviews, meetings, and coding assessments. You help users by providing real-time assistance during sessions. You are knowledgeable, concise, and professional.';
+
+export { SYSTEM_PROMPT_BASE };
 
 export class ContextAssembler {
   private readonly charsPerToken = 4;
@@ -13,8 +16,15 @@ export class ContextAssembler {
 
     if (payload.language && payload.language !== 'en') {
       const langNames: Record<string, string> = {
-        es: 'Spanish', fr: 'French', de: 'German', zh: 'Chinese',
-        ja: 'Japanese', ko: 'Korean', pt: 'Portuguese', ar: 'Arabic', ru: 'Russian',
+        es: 'Spanish',
+        fr: 'French',
+        de: 'German',
+        zh: 'Chinese',
+        ja: 'Japanese',
+        ko: 'Korean',
+        pt: 'Portuguese',
+        ar: 'Arabic',
+        ru: 'Russian',
       };
       systemParts.push(`Respond in ${langNames[payload.language] || payload.language}.`);
     }
@@ -52,12 +62,15 @@ export class ContextAssembler {
 
     if (payload.transcript && payload.transcript.length > 0) {
       const transcriptText = payload.transcript
-        .map((t: { speaker: string; timestamp: number; text: string }) => `[${t.speaker} at ${this.formatTime(t.timestamp)}]: ${t.text}`)
+        .map(
+          (t: { speaker: string; timestamp: number; text: string }) =>
+            `[${t.speaker} at ${this.formatTime(t.timestamp)}]: ${t.text}`,
+        )
         .join('\n');
 
       const maxTranscriptChars = Math.min(
         transcriptText.length,
-        Math.max(0, (maxTokens * this.charsPerToken) - totalChars - 500),
+        Math.max(0, maxTokens * this.charsPerToken - totalChars - 500),
       );
 
       const truncated = transcriptText.slice(-maxTranscriptChars);

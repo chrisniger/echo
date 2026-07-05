@@ -1233,9 +1233,9 @@ The V2 architecture (Phases 16-22) expands Echo into a multi-device ecosystem by
 
 ### Step 3: Complete V1 AI Gateway Gaps
 
-13. **Add OpenRouter provider** — OpenAI-compatible adapter
-14. **Add prompt caching** — Cache common system prompts
-15. **Add load balancing** — Distribute requests across multiple provider API keys
+13. **Add OpenRouter provider** — ✅ Done (`providers/openrouter.ts` — OpenAI-compatible adapter, `openrouter/auto` model, config + env var)
+14. **Add prompt caching** — ✅ Done (`services/cache.ts` — SHA256 hash-keyed cache with TTL, max entries, LRU eviction, wired into `/chat/context` endpoint, admin stats endpoint `/api/admin/cache-stats`)
+15. **Add load balancing** — ✅ Done (3 modes: `failover` (default), `round-robin`, `least-loaded`; configurable via `/api/admin/load-balance-mode`, stats at `/api/admin/load-stats`)
 
 ### Step 4: Complete V1 Cloud API Gaps
 
