@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import http from 'http';
 import { config } from './config.js';
 import authRoutes from './routes/auth.js';
 import userRoutes from './routes/users.js';
@@ -10,6 +11,7 @@ import { createNotificationsRouter } from './routes/notifications.js';
 import { createAnalyticsRouter } from './routes/analytics.js';
 import { createAdminRouter } from './routes/admin.js';
 import { getDb } from './db/index.js';
+import { WsGateway } from './websocket/gateway.js';
 
 const app = express();
 
@@ -29,6 +31,10 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+app.get('/api/ws-stats', (_req, res) => {
+  res.json(wsGateway.getStats());
+});
+
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('[ERROR]', err);
   if (err.name === 'ZodError') {
@@ -38,10 +44,20 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
   res.status(500).json({ error: err.message || 'Internal server error' });
 });
 
+declare module 'express' {
+  interface Request {
+    user?: { id: string; email: string; role: string };
+  }
+}
+
 getDb();
 
-app.listen(config.PORT, () => {
+const server = http.createServer(app);
+const wsGateway = new WsGateway(server);
+
+server.listen(config.PORT, () => {
   console.log(`[Echo Cloud API] Server running on http://localhost:${config.PORT}`);
+  console.log(`[Echo Cloud API] WebSocket available at ws://localhost:${config.PORT}/ws`);
 });
 
 export default app;

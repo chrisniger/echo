@@ -1120,15 +1120,15 @@ The V2 architecture (Phases 16-22) expands Echo into a multi-device ecosystem by
 | Performance optimization | ❌ Not done | Virtual scrolling, lazy loading                       |
 | Installer signing        | ❌ Not done | Platform-specific setup                               |
 
-### Phase 16 — WebSocket Gateway ❌ Not Started
+### Phase 16 — WebSocket Gateway ✅ Done
 
-| Item                         | Status      | Notes                                                     |
-| ---------------------------- | ----------- | --------------------------------------------------------- |
-| WebSocket server (Cloud API) | ❌ Not done | Need `ws` library, connection management, auth            |
-| Event protocol               | ❌ Not done | transcript.update, ai.response, session._, device._, etc. |
-| Offline queue + retry        | ❌ Not done | Buffer events, auto-reconnect                             |
-| Desktop WebSocket client     | ❌ Not done | Subscribe/unsubscribe, sync state indicator               |
-| Conflict resolution          | ❌ Not done | Last-write-wins with timestamps                           |
+| Item                         | Status  | Notes                                                                                                                                                |
+| ---------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| WebSocket server (Cloud API) | ✅ Done | `websocket/gateway.ts` — Express `http.createServer` + `ws`, JWT auth on connect, heartbeat (30s interval, 120s timeout), room/channel system        |
+| Event protocol               | ✅ Done | `websocket/events.ts` — transcript.update, ai.response, session.start/pause/resume/end, device.connected/disconnected, notification, upload.complete |
+| Offline queue + retry        | ✅ Done | `WsClient` buffers events when disconnected, auto-flushes on reconnect                                                                               |
+| Desktop WebSocket client     | ✅ Done | `lib/ws-client.ts` — auto-reconnect with exponential backoff, subscribe/unsubscribe, typed event handlers                                            |
+| Conflict resolution          | ✅ Done | Last-write-wins with timestamps, `isFinal` flag on transcript segments                                                                               |
 
 ### Phase 17 — Device Pairing ❌ Not Started
 
@@ -1254,11 +1254,11 @@ The V2 architecture (Phases 16-22) expands Echo into a multi-device ecosystem by
 
 ### Step 6: WebSocket Gateway (Phase 16)
 
-25. **WebSocket server in Cloud API** — `ws` library, connection management, JWT auth
-26. **Define event protocol** — transcript.update, ai.response, session._, device._, notification, upload.complete
-27. **Implement offline queue** — Buffer events during disconnection, auto-reconnect
-28. **Desktop WebSocket client** — Subscribe/unsubscribe, sync state indicator in UI
-29. **Conflict resolution** — Last-write-wins with timestamps
+25. **WebSocket server in Cloud API** — ✅ Done (`websocket/gateway.ts` with JWT auth, connection mgmt, room/channel system, heartbeat)
+26. **Define event protocol** — ✅ Done (`websocket/events.ts` — transcript.update, ai.response, session._, device._, notification, upload.complete)
+27. **Implement offline queue** — ✅ Done (WsClient buffers events during disconnection, auto-replays on reconnect)
+28. **Desktop WebSocket client** — ✅ Done (`lib/ws-client.ts` + `hooks/useWebSocket.ts` — auto-reconnect, subscribe/unsubscribe, event handlers, React integration)
+29. **Conflict resolution** — ✅ Done (last-write-wins with timestamps in event protocol)
 
 ### Step 7: Device Pairing Service (Phase 17)
 
