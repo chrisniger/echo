@@ -19,7 +19,14 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Switch } from '../components/ui/switch';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../components/ui/select';
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '../components/ui/select';
+import { DeviceManagement } from '../components/DeviceManagement';
 
 const languages = [
   { value: 'en', label: 'English' },
@@ -56,7 +63,15 @@ const recordingQualities = [
   { value: 'high', label: 'High' },
 ];
 
-function Section({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
+function Section({
+  title,
+  icon,
+  children,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <Card>
       <CardHeader>
@@ -128,16 +143,15 @@ export default function Settings() {
 
         <div className="space-y-1.5">
           <Label>Language</Label>
-          <Select
-            value={settings.language}
-            onValueChange={(v) => updateSetting('language', v)}
-          >
+          <Select value={settings.language} onValueChange={(v) => updateSetting('language', v)}>
             <SelectTrigger className="w-48">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {languages.map((l) => (
-                <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>
+                <SelectItem key={l.value} value={l.value}>
+                  {l.label}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -156,7 +170,9 @@ export default function Settings() {
             </SelectTrigger>
             <SelectContent>
               {models.map((m) => (
-                <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                <SelectItem key={m.value} value={m.value}>
+                  {m.label}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -166,14 +182,18 @@ export default function Settings() {
           <Label>Default Response Style</Label>
           <Select
             value={settings.defaultResponseStyle}
-            onValueChange={(v) => updateSetting('defaultResponseStyle', v as UserSettings['defaultResponseStyle'])}
+            onValueChange={(v) =>
+              updateSetting('defaultResponseStyle', v as UserSettings['defaultResponseStyle'])
+            }
           >
             <SelectTrigger className="w-48">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {responseStyles.map((s) => (
-                <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                <SelectItem key={s.value} value={s.value}>
+                  {s.label}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -182,9 +202,7 @@ export default function Settings() {
 
       <Section title="Assistant" icon={<Eye className="h-5 w-5 text-cyan-500" />}>
         <div className="space-y-1.5">
-          <Label>
-            Opacity: {Math.round(settings.floatingAssistantOpacity * 100)}%
-          </Label>
+          <Label>Opacity: {Math.round(settings.floatingAssistantOpacity * 100)}%</Label>
           <input
             type="range"
             min="0.3"
@@ -200,10 +218,11 @@ export default function Settings() {
       <Section title="Shortcuts" icon={<Keyboard className="h-5 w-5 text-emerald-500" />}>
         <div className="space-y-2">
           {Object.entries<string>(settings.globalShortcuts).map(([action, key]) => (
-            <div key={action} className="flex items-center justify-between rounded-md bg-zinc-800 px-4 py-2">
-              <span className="text-sm text-zinc-300 capitalize">
-                {action.replace(/-/g, ' ')}
-              </span>
+            <div
+              key={action}
+              className="flex items-center justify-between rounded-md bg-zinc-800 px-4 py-2"
+            >
+              <span className="text-sm text-zinc-300 capitalize">{action.replace(/-/g, ' ')}</span>
               <kbd className="rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-zinc-400 font-mono">
                 {key}
               </kbd>
@@ -217,14 +236,18 @@ export default function Settings() {
           <Label>Auto-delete Policy</Label>
           <Select
             value={settings.autoDeletePolicy}
-            onValueChange={(v) => updateSetting('autoDeletePolicy', v as UserSettings['autoDeletePolicy'])}
+            onValueChange={(v) =>
+              updateSetting('autoDeletePolicy', v as UserSettings['autoDeletePolicy'])
+            }
           >
             <SelectTrigger className="w-48">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {deletePolicies.map((p) => (
-                <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                <SelectItem key={p.value} value={p.value}>
+                  {p.label}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -234,14 +257,18 @@ export default function Settings() {
           <Label>Recording Quality</Label>
           <Select
             value={settings.recordingQuality}
-            onValueChange={(v) => updateSetting('recordingQuality', v as UserSettings['recordingQuality'])}
+            onValueChange={(v) =>
+              updateSetting('recordingQuality', v as UserSettings['recordingQuality'])
+            }
           >
             <SelectTrigger className="w-48">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {recordingQualities.map((q) => (
-                <SelectItem key={q.value} value={q.value}>{q.label}</SelectItem>
+                <SelectItem key={q.value} value={q.value}>
+                  {q.label}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -284,8 +311,17 @@ export default function Settings() {
       <Section title="Account" icon={<User className="h-5 w-5 text-blue-500" />}>
         <div className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
-            <Input label="Name" value={profileName} onChange={(e) => setProfileName(e.target.value)} />
-            <Input label="Email" type="email" value={profileEmail} onChange={(e) => setProfileEmail(e.target.value)} />
+            <Input
+              label="Name"
+              value={profileName}
+              onChange={(e) => setProfileName(e.target.value)}
+            />
+            <Input
+              label="Email"
+              type="email"
+              value={profileEmail}
+              onChange={(e) => setProfileEmail(e.target.value)}
+            />
           </div>
           <Button onClick={handleProfileSave} className="gap-2">
             <Save className="h-4 w-4" />
@@ -322,6 +358,10 @@ export default function Settings() {
             </Button>
           </div>
         </div>
+      </Section>
+
+      <Section title="Devices" icon={<Monitor className="h-5 w-5 text-purple-500" />}>
+        <DeviceManagement />
       </Section>
     </div>
   );

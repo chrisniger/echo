@@ -56,4 +56,11 @@ export const API_PATHS = {
     LOGS: '/api/admin/logs',
   },
   UPDATES: '/api/updates',
+  PAIRING: {
+    REQUEST: '/api/pairing/request',
+    APPROVE: '/api/pairing/approve',
+    REJECT: '/api/pairing/reject',
+    VERIFY: '/api/pairing/verify',
+    DEVICES: '/api/devices',
+  },
 } as const;

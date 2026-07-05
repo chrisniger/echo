@@ -10,6 +10,7 @@ import { createLicensingRouter } from './routes/licensing.js';
 import { createNotificationsRouter } from './routes/notifications.js';
 import { createAnalyticsRouter } from './routes/analytics.js';
 import { createAdminRouter } from './routes/admin.js';
+import pairingRoutes from './routes/pairing.js';
 import { getDb } from './db/index.js';
 import { WsGateway } from './websocket/gateway.js';
 
@@ -26,6 +27,7 @@ app.use('/api', createLicensingRouter());
 app.use('/api', createNotificationsRouter());
 app.use('/api', createAnalyticsRouter());
 app.use('/api', createAdminRouter());
+app.use('/api', pairingRoutes);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

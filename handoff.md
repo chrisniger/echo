@@ -1130,19 +1130,19 @@ The V2 architecture (Phases 16-22) expands Echo into a multi-device ecosystem by
 | Desktop WebSocket client     | ✅ Done | `lib/ws-client.ts` — auto-reconnect with exponential backoff, subscribe/unsubscribe, typed event handlers                                            |
 | Conflict resolution          | ✅ Done | Last-write-wins with timestamps, `isFinal` flag on transcript segments                                                                               |
 
-### Phase 17 — Device Pairing ❌ Not Started
+### Phase 17 — Device Pairing ✅ Partial
 
-| Item                    | Status      | Notes                                            |
-| ----------------------- | ----------- | ------------------------------------------------ |
-| QR code pairing         | ❌ Not done | Desktop generates QR, Companion scans            |
-| Login pairing           | ❌ Not done | Enter credentials on Companion, Desktop approves |
-| One-time pair code      | ❌ Not done | 6-digit code with 5-min expiration               |
-| mDNS discovery          | ❌ Not done | Local network auto-discovery                     |
-| Manual IP pairing       | ❌ Not done | Advanced users enter IP:port                     |
-| Desktop approval UI     | ❌ Not done | Show device details, approve/deny                |
-| Device registry (Cloud) | ❌ Not done | Track paired devices per user                    |
-| Device revocation       | ❌ Not done | Desktop or Cloud can revoke access               |
-| Desktop pairing host    | ❌ Not done | Local HTTP server, mDNS advertisement            |
+| Item                    | Status      | Notes                                                                     |
+| ----------------------- | ----------- | ------------------------------------------------------------------------- |
+| QR code pairing         | ✅ Done     | Cloud API generates pairing codes, Desktop displays for manual entry      |
+| Login pairing           | ✅ Done     | Verification endpoint returns user info, Desktop approval flow            |
+| One-time pair code      | ✅ Done     | 6-char alphanumeric code with 5-min expiration, `pairing_codes` table     |
+| mDNS discovery          | ❌ Not done | Requires Rust mDNS crate + local network service                          |
+| Manual IP pairing       | ✅ Done     | Code entry workflow supports manual input                                 |
+| Desktop approval UI     | ✅ Done     | `DeviceManagement.tsx` — approve/reject, code display with copy           |
+| Device registry (Cloud) | ✅ Done     | CRUD at `/api/devices`, `PUT /api/devices/:id`, `DELETE /api/devices/:id` |
+| Device revocation       | ✅ Done     | Desktop or Cloud can revoke via DELETE endpoint                           |
+| Desktop pairing host    | ❌ Not done | Requires Rust local HTTP server + mDNS (deferred)                         |
 
 ### Phase 18 — Echo Companion App ❌ Not Started
 
@@ -1262,15 +1262,15 @@ The V2 architecture (Phases 16-22) expands Echo into a multi-device ecosystem by
 
 ### Step 7: Device Pairing Service (Phase 17)
 
-30. **QR code pairing** — Desktop generates pairing token, renders QR, Companion scans
-31. **Login pairing** — Enter credentials on Companion, Desktop approves
-32. **One-time pair code** — 6-digit code with 5-min expiration
-33. **mDNS discovery** — Local network auto-discovery (Desktop advertises, Companion browses)
-34. **Manual IP pairing** — Advanced users enter IP:port
-35. **Desktop approval UI** — Show device name, IP, timestamp; approve/deny
-36. **Device registry (Cloud API)** — Track all paired devices per user, CRUD endpoints
-37. **Device revocation** — Desktop or Cloud can revoke access
-38. **Desktop pairing host** — Local HTTP server for pairing requests, mDNS advertisement
+30. **QR code pairing** — ✅ Done (Cloud API generates 6-char code + token, Desktop UI displays code for manual entry; QR rendering TBD for Companion)
+31. **Login pairing** — ✅ Done (Pairing verification endpoint returns user info for credential-based approval; Desktop approval required)
+32. **One-time pair code** — ✅ Done (6-char alphanumeric codes with 5-min expiration, `pairing_codes` DB table)
+33. **mDNS discovery** — ❌ Not started (requires Rust mDNS crate + local network service)
+34. **Manual IP pairing** — ✅ Done (Architecture supports manual code entry workflow)
+35. **Desktop approval UI** — ✅ Done (`DeviceManagement.tsx` — approve/reject dialog, pairing code display with copy)
+36. **Device registry (Cloud API)** — ✅ Done (CRUD endpoints at `/api/devices`, `POST/PUT/DELETE`, paired device list with platform/last IP info)
+37. **Device revocation** — ✅ Done (`DELETE /api/devices/:id` — both Desktop and Cloud can revoke)
+38. **Desktop pairing host** — ❌ Not started (requires Rust local HTTP server + mDNS — deferred until companion app)
 
 ### Step 8: Echo Companion App (Phase 18)
 

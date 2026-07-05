@@ -130,4 +130,17 @@ CREATE TABLE IF NOT EXISTS feature_flags (
   created_at TEXT,
   updated_at TEXT
 );
+
+CREATE TABLE IF NOT EXISTS pairing_codes (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  code TEXT NOT NULL,
+  token TEXT NOT NULL,
+  device_name TEXT NOT NULL,
+  platform TEXT DEFAULT 'unknown',
+  device_id TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  expires_at TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
 `;
