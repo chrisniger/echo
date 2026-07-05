@@ -1,0 +1,7 @@
+# Echo GPT Local Development — Caddy TLS
+# Requires: choco install caddy (Windows) or brew install caddy (macOS)
+# Run: caddy run --config Caddyfile
+
+localhost:4000, localhost:4001, localhost:5173 {
+  tls internal
+}
