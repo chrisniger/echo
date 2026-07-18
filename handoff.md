@@ -943,24 +943,24 @@ The V2 architecture (Phases 16-22) expands Echo into a multi-device ecosystem by
 
 ### Phase 0 — Project Scaffolding ✅ Done
 
-| Item                                        | Status      | Notes                                                                   |
-| ------------------------------------------- | ----------- | ----------------------------------------------------------------------- |
-| pnpm workspaces monorepo                    | ✅ Done     | Root `package.json`, `pnpm-workspace.yaml`                              |
-| Shared TypeScript types                     | ✅ Done     | `packages/shared-types` — auth, session, gateway, user types            |
-| Shared constants/config package             | ✅ Done     | `packages/shared-config` — api, auth, providers, storage, app constants |
-| ESLint + Prettier config                    | ✅ Done     | `eslint.config.mjs` with TypeScript rules, `.prettierrc`                |
-| Husky pre-commit hooks                      | ✅ Done     | `lint-staged` runs eslint --fix + prettier --write on staged files      |
-| Tailwind CSS + shadcn/ui                    | ✅ Done     | Desktop app — 13 UI components                                          |
-| Zustand + TanStack Query                    | ✅ Done     | Stores + provider in Desktop                                            |
-| React Router pages                          | ✅ Done     | All routes defined                                                      |
-| `.env.example` files                        | ✅ Done     | Root + each app                                                         |
-| Cloud API scaffold (Express/SQLite)         | ✅ Done     | Node.js + Express + better-sqlite3 (not PostgreSQL/Redis as spec'd)     |
-| Docker Compose (PostgreSQL, Redis, Mailhog) | ✅ Done | Dockerfiles + docker-compose.yml with cloud-api, ai-gateway, minio |
-| AI Gateway scaffold                         | ✅ Done     | Node.js + Express, provider interface                                   |
-| Dockerfiles (Cloud API + AI Gateway)        | ✅ Done     | Multi-stage builds, `.dockerignore` files                               |
-| docker-compose.yml                          | ✅ Done     | cloud-api, ai-gateway, and MinIO services                               |
-| Local dev TLS (Caddy)                       | ✅ Done     | `Caddyfile` with auto-TLS for localhost:4000,4001,5173                  |
-| S3-compatible storage (MinIO)               | ✅ Done     | Configured in docker-compose.yml                                        |
+| Item                                        | Status  | Notes                                                                   |
+| ------------------------------------------- | ------- | ----------------------------------------------------------------------- |
+| pnpm workspaces monorepo                    | ✅ Done | Root `package.json`, `pnpm-workspace.yaml`                              |
+| Shared TypeScript types                     | ✅ Done | `packages/shared-types` — auth, session, gateway, user types            |
+| Shared constants/config package             | ✅ Done | `packages/shared-config` — api, auth, providers, storage, app constants |
+| ESLint + Prettier config                    | ✅ Done | `eslint.config.mjs` with TypeScript rules, `.prettierrc`                |
+| Husky pre-commit hooks                      | ✅ Done | `lint-staged` runs eslint --fix + prettier --write on staged files      |
+| Tailwind CSS + shadcn/ui                    | ✅ Done | Desktop app — 13 UI components                                          |
+| Zustand + TanStack Query                    | ✅ Done | Stores + provider in Desktop                                            |
+| React Router pages                          | ✅ Done | All routes defined                                                      |
+| `.env.example` files                        | ✅ Done | Root + each app                                                         |
+| Cloud API scaffold (Express/SQLite)         | ✅ Done | Node.js + Express + better-sqlite3 (not PostgreSQL/Redis as spec'd)     |
+| Docker Compose (PostgreSQL, Redis, Mailhog) | ✅ Done | Dockerfiles + docker-compose.yml with cloud-api, ai-gateway, minio      |
+| AI Gateway scaffold                         | ✅ Done | Node.js + Express, provider interface                                   |
+| Dockerfiles (Cloud API + AI Gateway)        | ✅ Done | Multi-stage builds, `.dockerignore` files                               |
+| docker-compose.yml                          | ✅ Done | cloud-api, ai-gateway, and MinIO services                               |
+| Local dev TLS (Caddy)                       | ✅ Done | `Caddyfile` with auto-TLS for localhost:4000,4001,5173                  |
+| S3-compatible storage (MinIO)               | ✅ Done | Configured in docker-compose.yml                                        |
 
 ### Phase 1 — Authentication & User System ✅
 
@@ -980,19 +980,19 @@ The V2 architecture (Phases 16-22) expands Echo into a multi-device ecosystem by
 
 ### Phase 2 — Core Desktop Shell ✅
 
-| Item                      | Status  | Notes                                                                                   |
-| ------------------------- | ------- | --------------------------------------------------------------------------------------- |
-| App shell with sidebar    | ✅ Done | `Layout.tsx` with nav                                                                   |
-| Dashboard page            | ✅ Done | Stats, recent sessions, quick actions                                                   |
-| Settings page             | ✅ Done | All sections                                                                            |
-| Global error boundary     | ✅ Done | `ErrorBoundary.tsx`                                                                     |
-| Loading/skeleton patterns | ✅ Done | `LoadingScreen.tsx`, `skeleton.tsx`                                                     |
-| Floating Assistant        | ✅ Done | `FloatingAssistant.tsx` — draggable, tabs, opacity                                      |
-| Global shortcuts          | ✅ Done | Rust `tauri-plugin-global-shortcut` (native)                                            |
+| Item                      | Status  | Notes                                                                                                      |
+| ------------------------- | ------- | ---------------------------------------------------------------------------------------------------------- |
+| App shell with sidebar    | ✅ Done | `Layout.tsx` with nav                                                                                      |
+| Dashboard page            | ✅ Done | Stats, recent sessions, quick actions                                                                      |
+| Settings page             | ✅ Done | All sections                                                                                               |
+| Global error boundary     | ✅ Done | `ErrorBoundary.tsx`                                                                                        |
+| Loading/skeleton patterns | ✅ Done | `LoadingScreen.tsx`, `skeleton.tsx`                                                                        |
+| Floating Assistant        | ✅ Done | `FloatingAssistant.tsx` — draggable, tabs, opacity                                                         |
+| Global shortcuts          | ✅ Done | Rust `tauri-plugin-global-shortcut` (native)                                                               |
 | System tray               | ✅ Done | Rust tray icon with menu (New Session, Pause/Resume, Show, Quit) + left-click show + hide-to-tray on close |
-| Hide to tray              | ✅ Done | `hide_to_tray` Tauri command + header button + intercept close event to hide instead of quit |
-| Tauri 2 Rust backend      | ✅ Done | `lib.rs` with commands, plugins (shell, dialog, fs, global-shortcut)                    |
-| Audio capture commands    | ✅ Done | Rust `start_mic_capture`/`stop_capture`/`get_capture_state` with cpal/WASAPI            |
+| Hide to tray              | ✅ Done | `hide_to_tray` Tauri command + header button + intercept close event to hide instead of quit               |
+| Tauri 2 Rust backend      | ✅ Done | `lib.rs` with commands, plugins (shell, dialog, fs, global-shortcut)                                       |
+| Audio capture commands    | ✅ Done | Rust `start_mic_capture`/`stop_capture`/`get_capture_state` with cpal/WASAPI                               |
 
 ### Phase 3 — Session Management ✅
 
@@ -1007,27 +1007,56 @@ The V2 architecture (Phases 16-22) expands Echo into a multi-device ecosystem by
 | Item                        | Status         | Notes                                                                                                                   |
 | --------------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | Audio capture (cpal/WASAPI) | ✅ Done        | Rust `start_mic_capture`/`stop_capture`/`get_capture_state` commands with background thread capture, device enumeration |
+| Cloud transcription         | ✅ Done        | `transcribe_audio` Tauri command sends buffered WAV to AI Gateway `/api/transcribe` (Groq/Whisper fallback)             |
+| Transcription interval      | ✅ Done        | Configurable per session (`transcriptionIntervalMs`), default **5 000 ms** (2–30 s options in UI)                       |
+| Silence filter              | ✅ Done        | Rust RMS/peak gate rejects near-silent buffers before sending to STT (RMS < 0.008 && peak < 0.03)                       |
+| Question detection engine   | ✅ Done        | Multi-layer engine (fast rules + patterns + context memory + optional AI classifier) in `services/intelligence/`        |
+| AI auto-trigger             | ✅ Done        | Detected questions are sent to `/api/chat` after a silence boundary; 15 000 ms cooldown between questions               |
 | Whisper integration         | ⚠️ Partial     | Rust interface + cloud transcription via AI Gateway; local inference requires LLVM/libclang for `bindgen`               |
 | Speaker diarization         | ❌ Not started | Requires Whisper + post-processing                                                                                      |
 | Transcript UI               | ✅ Done        | Speaker labels, confidence dots, click-to-edit                                                                          |
 | Export transcript           | ✅ Done        | `SessionExport.tsx` — TXT, SRT, JSON, PDF                                                                               |
 
+#### Phase 4a — Question Detection & AI Triggering Details
+
+The desktop background loop (`hooks/useSessionBackground.ts`) drives the live transcript → AI flow:
+
+1. **Capture** — Rust `AudioCapture` continuously buffers raw f32 samples.
+2. **Tick** — Every `transcriptionIntervalMs` (default **5 s**) the frontend calls `transcribe_audio`.
+3. **Silence gate** — If the buffer is nearly silent, the command returns `segments: []` immediately without calling the STT provider.
+4. **Flush on silence** — Accumulated transcript batches (`pendingUtteranceRef`) are only passed to the question-detection engine when a tick returns **zero segments**. This means the app waits for the speaker to pause (silence) before deciding the utterance is complete.
+5. **Cooldown** — After a successful AI trigger, a **15 000 ms** cooldown blocks further questions to avoid duplicate/spam responses.
+6. **Threshold** — The detection engine requires `confidence >= threshold` (default **0.7**) to treat an utterance as a question.
+
+**Common reasons a transcribed question does NOT trigger an AI answer:**
+
+- **Still within the 15 s question cooldown** (`questionCooldownMs`).
+- **Confidence below threshold** (default 0.7); adjust in Settings → Question Detection.
+- **Question detection disabled** or all layers disabled (`enableFastRules`, `enablePatterns`, `enableContextMemory` off and `enableClassifier` off).
+- **No silence boundary yet** — the speaker is still talking, so the utterance has not been flushed.
+- **Repeated phrase suppression** — the exact same transcript within 30 s is ignored.
+- **Low STT confidence** — segments with confidence < 0.35 are dropped.
+- **No auth token** — the background tick skips when the user is not logged in.
+- **AI Gateway error** — `fetchAiAnswer` returns `null` and the response is not stored/broadcast.
+- **Session ended** — processing stops once the session status is `ended`.
+- **Classifier not enabled by default** — the AI classifier layer is off in `useSessionBackground`; only fast rules, patterns, and context memory run unless explicitly enabled.
+
 ### Phase 5 — AI Gateway ✅
 
-| Item                 | Status      | Notes                                            |
-| -------------------- | ----------- | ------------------------------------------------ |
-| OpenAI adapter       | ✅ Done     | GPT-4o, GPT-4-turbo, streaming                   |
-| Anthropic adapter    | ✅ Done     | Claude 3 models, streaming                       |
-| Gemini adapter       | ✅ Done     | Gemini 2.0 models, streaming                     |
-| DeepSeek adapter     | ✅ Done     | chat + coder, streaming                          |
-| Ollama adapter       | ✅ Done     | Local, streaming                                 |
-| OpenRouter adapter | ✅ Done | OpenAI-compatible adapter, `openrouter/auto` model |
-| Provider interface   | ✅ Done     | `BaseProvider` abstract class                    |
-| Router with failover | ✅ Done     | Circuit-breaker, priority routing                |
-| Context assembler    | ✅ Done     | CV, JD, documents, transcript, history, language |
-| Token counter        | ✅ Done     | Approximate (chars/4)                            |
-| Streaming SSE        | ✅ Done     | `/chat/stream` endpoint                          |
-| Health check         | ✅ Done     | `/health` — per-provider status                  |
+| Item                 | Status  | Notes                                              |
+| -------------------- | ------- | -------------------------------------------------- |
+| OpenAI adapter       | ✅ Done | GPT-4o, GPT-4-turbo, streaming                     |
+| Anthropic adapter    | ✅ Done | Claude 3 models, streaming                         |
+| Gemini adapter       | ✅ Done | Gemini 2.0 models, streaming                       |
+| DeepSeek adapter     | ✅ Done | chat + coder, streaming                            |
+| Ollama adapter       | ✅ Done | Local, streaming                                   |
+| OpenRouter adapter   | ✅ Done | OpenAI-compatible adapter, `openrouter/auto` model |
+| Provider interface   | ✅ Done | `BaseProvider` abstract class                      |
+| Router with failover | ✅ Done | Circuit-breaker, priority routing                  |
+| Context assembler    | ✅ Done | CV, JD, documents, transcript, history, language   |
+| Token counter        | ✅ Done | Approximate (chars/4)                              |
+| Streaming SSE        | ✅ Done | `/chat/stream` endpoint                            |
+| Health check         | ✅ Done | `/health` — per-provider status                    |
 
 ### Phase 6 — AI Assistance Features ✅
 
@@ -1227,7 +1256,11 @@ The V2 architecture (Phases 16-22) expands Echo into a multi-device ecosystem by
 8. **Install Rust + Cargo** — ✅ Done (rustc 1.96.1, cargo 1.96.1)
 9. **Implement Tauri 2 native shell** — ✅ Done (system tray with menu, native global shortcuts, `lib.rs` with commands + plugins)
 10. **Port audio capture to Rust** — ✅ Done (cpal-based microphone capture via WASAPI, device enumeration, background thread capture, `start_mic_capture`/`stop_capture`/`get_capture_state` Tauri commands)
-11. **Integrate Whisper** — ⚠️ Partial (whisper.rs model interface + transcribe.rs module; local whisper-rs requires LLVM libclang for bindgen; cloud transcription via AI Gateway API is wired up)
+11. **Integrate Whisper / STT** — ⚠️ Partial (whisper.rs model interface + transcribe.rs module; local whisper-rs requires LLVM libclang for bindgen; cloud transcription via AI Gateway `/api/transcribe` is wired up and used by default)
+    11a. **Implement live transcription tick** — ✅ Done (`hooks/useSessionBackground.ts` polls every `transcriptionIntervalMs`, default 5 000 ms)
+    11b. **Implement silence gate** — ✅ Done (Rust RMS/peak filter rejects silent buffers before STT)
+    11c. **Implement question detection engine** — ✅ Done (`services/intelligence/engine.ts` — fast rules + patterns + context memory + optional AI classifier)
+    11d. **Implement AI auto-trigger on silence boundary** — ✅ Done (`hooks/useSessionBackground.ts` flushes `pendingUtteranceRef` only when a tick returns zero segments; 15 000 ms cooldown)
 12. **Speaker diarization** — ❌ Not started (requires Whisper + post-processing)
 
 ### Step 3: Complete V1 AI Gateway Gaps
@@ -1358,18 +1391,19 @@ flutter pub get
 flutter run
 ```
 
-| Service | URL | Login |
-|---------|-----|-------|
+| Service    | URL                   | Login                         |
+| ---------- | --------------------- | ----------------------------- |
 | Web Portal | http://localhost:3000 | demo@echo-gpt.app / Demo1234! |
-| Cloud API | http://localhost:4000 | — |
-| AI Gateway | http://localhost:4001 | — |
-| Desktop | `pnpm tauri dev` | — |
+| Cloud API  | http://localhost:4000 | —                             |
+| AI Gateway | http://localhost:4001 | —                             |
+| Desktop    | `pnpm tauri dev`      | —                             |
 
 ---
 
 ## Recent Session Notes (Latest)
 
 ### Fixes Applied
+
 1. **API Path Mismatch** — Fixed `.env` files to use `/api` prefix:
    - Desktop: `VITE_CLOUD_API_URL=http://localhost:4000/api`
    - Web Portal: `NEXT_PUBLIC_CLOUD_API_URL=http://localhost:4000/api`
@@ -1381,6 +1415,7 @@ flutter run
 3. **Desktop API Client** — Updated `apps/desktop/src/lib/api.ts` to use absolute URLs from env vars (works in Tauri standalone builds)
 
 ### Features Added
+
 4. **Hide to Tray** — Desktop can now minimize to system tray:
    - Header "Hide" button (Minimize2 icon)
    - Close (X) button hides to tray instead of quitting
@@ -1388,6 +1423,7 @@ flutter run
    - Left-click tray icon restores window
 
 ### Next Steps
+
 5. **Companion App Setup** — Flutter SDK installed via VS Code
    - Need to generate Android platform files: `flutter create . --platforms=android`
    - Need to configure API URL for phone (use PC's local IP, not localhost)
@@ -1417,6 +1453,7 @@ Flutter SDK is installed. Cloud API runs on port 4000.
 ## Latest Fix Pass
 
 ### What Was Fixed
+
 1. **WebSocket room mismatch**
    - Desktop was subscribing to `session:${id}` while Cloud API broadcast to `sessionId`.
    - Fixed desktop subscription to use the raw session id.
@@ -1456,11 +1493,13 @@ Flutter SDK is installed. Cloud API runs on port 4000.
    - Fixed the null guard that was breaking desktop typecheck.
 
 ### Verification
+
 - `apps/desktop`: `pnpm typecheck` ✅
 - `apps/cloud-api`: `pnpm typecheck` ✅
 - `apps/ai-gateway`: `pnpm typecheck` ✅
 
 ### Notes
+
 - The desktop/system loopback capture path is improved, but the Windows audio stack still needs real device testing.
 - Companion sync should now work once the Desktop WebSocket connection is established and the session room is subscribed.
 - If you do another testing pass, start with:
@@ -1497,21 +1536,23 @@ Flutter SDK is installed. Cloud API runs on port 4000.
 
 Replaces the old single-rule `looksLikeQuestion()` heuristic with a 4-layer engine in `apps/desktop/src/services/intelligence/`:
 
-| Layer | Purpose | Latency |
-|---|---|---|
-| 1. Fast rules | 5W1H + modals + imperatives + suffix tags | ~1 ms |
-| 2. Pattern recognition | 50+ interview/coding/SQL/DevOps patterns (configurable via Settings) | ~1 ms |
-| 3. Context memory | rolling window of last N segments; recognises "elaborate", "tell me more", short interrogatives after a question | ~1 ms |
-| 4. AI classifier | calls the new `/api/classify/question` endpoint (Groq → OpenAI → DeepSeek fallback) | 200-400 ms (only when L1/L2 don't produce a high-confidence hit) |
+| Layer                  | Purpose                                                                                                          | Latency                                                          |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| 1. Fast rules          | 5W1H + modals + imperatives + suffix tags                                                                        | ~1 ms                                                            |
+| 2. Pattern recognition | 50+ interview/coding/SQL/DevOps patterns (configurable via Settings)                                             | ~1 ms                                                            |
+| 3. Context memory      | rolling window of last N segments; recognises "elaborate", "tell me more", short interrogatives after a question | ~1 ms                                                            |
+| 4. AI classifier       | calls the new `/api/classify/question` endpoint (Groq → OpenAI → DeepSeek fallback)                              | 200-400 ms (only when L1/L2 don't produce a high-confidence hit) |
 
 Each layer emits a `RuleHit` with a weight in [0, 1]. The engine takes the max weight, applies the **configurable threshold** (default 0.7 = 70%), and the matched layer is recorded for logging. Layer 4 can **override** a rule hit (e.g. "Sounds great" — rule would have ignored, classifier confirms) or **veto** it.
 
 The engine also:
+
 - Infers the current **Session Mode** (Interview, Coding Assessment, System Design, Meeting, etc.) from the rolling window of detected categories.
 - Routes the AI prompt to a **category-specific template** (STAR for Behavioural, code-block + complexity for Coding, ADR-lite for Architecture, etc.) so the answer is shaped to the question type.
 - Logs a single `[DETECT ...]` line per segment with everything you need to debug why a question did or didn't fire.
 
 Settings → AI → "Question Detection" section exposes:
+
 - Master enable
 - Confidence threshold slider (40-95%, default 70%)
 - Context window size slider (8-60 segments, default 30)
@@ -1520,6 +1561,7 @@ Settings → AI → "Question Detection" section exposes:
 - Custom pattern list editor (with structured `category:Tag: phrase` syntax)
 
 **Result:** the engine now catches segments like:
+
 - "Walk me through your experience with Laravel." → `Behavioral` (Layer 2, weight 0.95)
 - "Suppose you were designing Twitter." → `System Design` (Layer 2, weight 0.90)
 - "Reverse a linked list." → `Coding` (Layer 2, weight 0.95)

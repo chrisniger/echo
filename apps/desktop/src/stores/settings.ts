@@ -20,6 +20,7 @@ const defaultSettings: UserSettings = {
   enableSpeakerDiarization: true,
   enableAutoSummaries: true,
   enableCloudSync: true,
+  enableInterviewForceSend: true,
   questionDetection: {
     enabled: true,
     threshold: 0.7,

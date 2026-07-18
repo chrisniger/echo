@@ -1,6 +1,22 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Pause, Play, Square, Clock, Activity, FileText, Image, Mic, MicOff, Tag, ChevronDown, Check, AlertTriangle } from 'lucide-react';
+import {
+  ArrowLeft,
+  Pause,
+  Play,
+  Square,
+  Clock,
+  Activity,
+  FileText,
+  Image,
+  Mic,
+  MicOff,
+  Tag,
+  ChevronDown,
+  Check,
+  AlertTriangle,
+  Hourglass,
+} from 'lucide-react';
 import { useSessionStore } from '../stores/session';
 import { useToastStore } from '../stores/toast';
 import { ApiError } from '../lib/api';
@@ -15,7 +31,7 @@ import AudioCaptureControls from '../components/AudioCaptureControls';
 import ScreenshotCapture from '../components/ScreenshotCapture';
 import SessionExport from '../components/SessionExport';
 import { SessionTypeBadge } from '../components/SessionTypeBadge';
-import { useSessionBackground } from '../hooks/useSessionBackground';
+import { useSessionBackground, type CooldownState } from '../hooks/useSessionBackground';
 import { formatTranscriptionInterval } from '../lib/transcriptionIntervals';
 import {
   DropdownMenu,
@@ -54,40 +70,52 @@ export default function SessionDetail() {
     } catch (err) {
       let message: string;
       if (err instanceof ApiError) {
-        if (err.status === 401) message = "Session expired \u2014 please sign in again.";
-        else if (err.status === 404) message = "Session not found.";
-        else if (err.status === 409) message = (err.body as any)?.message || "Session can no longer be modified.";
-        else if (err.status >= 500) message = "Server error \u2014 please try again in a moment.";
+        if (err.status === 401) message = 'Session expired \u2014 please sign in again.';
+        else if (err.status === 404) message = 'Session not found.';
+        else if (err.status === 409)
+          message = (err.body as any)?.message || 'Session can no longer be modified.';
+        else if (err.status >= 500) message = 'Server error \u2014 please try again in a moment.';
         else message = err.message;
       } else if (err instanceof Error) {
-        message = err.message === "Failed to fetch"
-          ? "Network error \u2014 check your connection."
-          : err.message;
+        message =
+          err.message === 'Failed to fetch'
+            ? 'Network error \u2014 check your connection.'
+            : err.message;
       } else {
-        message = "Failed to reclassify session.";
+        message = 'Failed to reclassify session.';
       }
       pushToast({
-        title: "Reclassify failed",
+        title: 'Reclassify failed',
         description: message,
-        variant: "warning",
+        variant: 'warning',
         durationMs: 6000,
       });
     }
   }
 
   const [isListening, setIsListening] = useState(false);
-  const [bgCapture, setBgCapture] = useState<{ isCapturing: boolean; source: string; error: string | null }>({
+  const [bgCapture, setBgCapture] = useState<{
+    isCapturing: boolean;
+    source: string;
+    error: string | null;
+  }>({
     isCapturing: false,
     source: 'unknown',
     error: null,
   });
+  const [cooldown, setCooldown] = useState<CooldownState>({ isInCooldown: false, remainingMs: 0 });
 
   useEffect(() => {
     if (id) fetchSession(id);
   }, [id, fetchSession]);
 
   const shouldCapture = currentSession?.status === 'active';
-  const captureSource = (currentSession?.audioSource as 'microphone' | 'system' | 'mixed') ?? 'system';
+  const captureSource =
+    (currentSession?.audioSource as 'microphone' | 'system' | 'mixed') ?? 'system';
+
+  const handleCooldownChange = useCallback((state: CooldownState) => {
+    setCooldown(state);
+  }, []);
 
   useSessionBackground({
     enabled: shouldCapture,
@@ -95,6 +123,7 @@ export default function SessionDetail() {
     transcriptionIntervalMs: currentSession?.transcriptionIntervalMs ?? 5000,
     gatewayUrl: 'http://localhost:4001',
     onCaptureStateChange: setBgCapture,
+    onCooldownChange: handleCooldownChange,
   });
 
   useEffect(() => {
@@ -124,7 +153,7 @@ export default function SessionDetail() {
                 {currentSession.status}
               </Badge>
               <SessionTypeBadge type={currentSession.sessionType} size="md" />
-              {(currentSession.status === "active" || currentSession.status === "paused") && (
+              {(currentSession.status === 'active' || currentSession.status === 'paused') && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
@@ -156,7 +185,9 @@ export default function SessionDetail() {
                           ) : (
                             <span className="h-3.5 w-3.5 flex-none" />
                           )}
-                          <span className={isCurrent ? "font-semibold text-zinc-100" : "text-zinc-300"}>
+                          <span
+                            className={isCurrent ? 'font-semibold text-zinc-100' : 'text-zinc-300'}
+                          >
                             {t}
                           </span>
                           {isCurrent && (
@@ -180,6 +211,18 @@ export default function SessionDetail() {
                 <div className="flex items-center gap-2 rounded-full bg-emerald-500/20 px-3 py-1">
                   <div className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
                   <span className="text-xs font-medium text-emerald-400">Listening</span>
+                </div>
+              )}
+              {cooldown.isInCooldown && (
+                <div
+                  className="flex items-center gap-2 rounded-full bg-amber-500/20 px-3 py-1"
+                  aria-label="AI question cooldown active"
+                  title="AI question cooldown active"
+                >
+                  <Hourglass className="h-3.5 w-3.5 text-amber-400" />
+                  <span className="text-xs font-medium text-amber-400">
+                    AI cooldown: {Math.ceil(cooldown.remainingMs / 1000)}s
+                  </span>
                 </div>
               )}
             </div>
@@ -228,13 +271,19 @@ export default function SessionDetail() {
       </div>
 
       {currentSession.status === 'active' && (
-        <Card className={`border-emerald-500/20 ${bgCapture.error ? 'bg-red-500/5 border-red-500/30' : 'bg-emerald-500/5'}`}>
+        <Card
+          className={`border-emerald-500/20 ${bgCapture.error ? 'bg-red-500/5 border-red-500/30' : 'bg-emerald-500/5'}`}
+        >
           <CardContent className="flex items-center gap-4 p-4">
-            <div className={`flex h-12 w-12 items-center justify-center rounded-full ${bgCapture.isCapturing ? 'bg-emerald-500/20' : bgCapture.error ? 'bg-red-500/20' : 'bg-zinc-700/40'}`}>
+            <div
+              className={`flex h-12 w-12 items-center justify-center rounded-full ${bgCapture.isCapturing ? 'bg-emerald-500/20' : bgCapture.error ? 'bg-red-500/20' : 'bg-zinc-700/40'}`}
+            >
               {bgCapture.isCapturing ? (
                 <Mic className="h-6 w-6 text-emerald-500" />
               ) : (
-                <MicOff className={`h-6 w-6 ${bgCapture.error ? 'text-red-500' : 'text-zinc-500'}`} />
+                <MicOff
+                  className={`h-6 w-6 ${bgCapture.error ? 'text-red-500' : 'text-zinc-500'}`}
+                />
               )}
             </div>
             <div className="flex-1">
@@ -242,23 +291,35 @@ export default function SessionDetail() {
                 {bgCapture.error
                   ? 'Audio capture failed'
                   : bgCapture.isCapturing
-                  ? `Listening (${bgCapture.source})`
-                  : 'Starting audio capture…'}
+                    ? `Listening (${bgCapture.source})`
+                    : 'Starting audio capture…'}
               </p>
               <p className="text-sm text-zinc-400">
                 {bgCapture.error
                   ? bgCapture.error
                   : bgCapture.isCapturing
-                  ? `Audio is being captured and transcribed every ${formatTranscriptionInterval(currentSession.transcriptionIntervalMs)}.`
-                  : 'Warming up audio devices…'}
+                    ? `Audio is being captured and transcribed every ${formatTranscriptionInterval(currentSession.transcriptionIntervalMs)}.`
+                    : 'Warming up audio devices…'}
               </p>
             </div>
             {bgCapture.isCapturing && (
               <div className="flex gap-1">
-                <div className="h-8 w-1 animate-pulse rounded-full bg-emerald-500" style={{ animationDelay: '0ms' }} />
-                <div className="h-8 w-1 animate-pulse rounded-full bg-emerald-500" style={{ animationDelay: '150ms' }} />
-                <div className="h-8 w-1 animate-pulse rounded-full bg-emerald-500" style={{ animationDelay: '300ms' }} />
-                <div className="h-8 w-1 animate-pulse rounded-full bg-emerald-500" style={{ animationDelay: '450ms' }} />
+                <div
+                  className="h-8 w-1 animate-pulse rounded-full bg-emerald-500"
+                  style={{ animationDelay: '0ms' }}
+                />
+                <div
+                  className="h-8 w-1 animate-pulse rounded-full bg-emerald-500"
+                  style={{ animationDelay: '150ms' }}
+                />
+                <div
+                  className="h-8 w-1 animate-pulse rounded-full bg-emerald-500"
+                  style={{ animationDelay: '300ms' }}
+                />
+                <div
+                  className="h-8 w-1 animate-pulse rounded-full bg-emerald-500"
+                  style={{ animationDelay: '450ms' }}
+                />
               </div>
             )}
           </CardContent>
@@ -267,24 +328,16 @@ export default function SessionDetail() {
 
       <Tabs defaultValue="transcript">
         <TabsList>
-          <TabsTrigger value="transcript">
-            Transcript ({transcript.length})
-          </TabsTrigger>
-          <TabsTrigger value="capture">
-            Capture
-          </TabsTrigger>
-          <TabsTrigger value="responses">
-            AI Responses ({aiResponses.length})
-          </TabsTrigger>
+          <TabsTrigger value="transcript">Transcript ({transcript.length})</TabsTrigger>
+          <TabsTrigger value="capture">Capture</TabsTrigger>
+          <TabsTrigger value="responses">AI Responses ({aiResponses.length})</TabsTrigger>
           <TabsTrigger value="assistant">Assistant</TabsTrigger>
           <TabsTrigger value="details">Details</TabsTrigger>
         </TabsList>
 
         <TabsContent value="transcript" className="space-y-3 mt-4">
           {transcript.length > 0 ? (
-            transcript.map((seg) => (
-              <Transcript key={seg.id} segment={seg} />
-            ))
+            transcript.map((seg) => <Transcript key={seg.id} segment={seg} />)
           ) : (
             <Card>
               <CardContent className="flex flex-col items-center py-12">
@@ -318,9 +371,7 @@ export default function SessionDetail() {
                   <div className="mb-3 flex items-center gap-2">
                     <Badge variant="secondary">{resp.model}</Badge>
                     <Badge variant="outline">{resp.provider}</Badge>
-                    <span className="text-xs text-zinc-500">
-                      {resp.tokensUsed} tokens
-                    </span>
+                    <span className="text-xs text-zinc-500">{resp.tokensUsed} tokens</span>
                     <div className="flex-1" />
                     <span className="text-xs text-zinc-500">
                       {new Date(resp.createdAt).toLocaleString()}
@@ -396,12 +447,16 @@ export default function SessionDetail() {
                 </div>
                 <div>
                   <p className="text-xs text-zinc-500">Started</p>
-                  <p className="text-sm text-zinc-300">{new Date(currentSession.startedAt).toLocaleString()}</p>
+                  <p className="text-sm text-zinc-300">
+                    {new Date(currentSession.startedAt).toLocaleString()}
+                  </p>
                 </div>
                 <div>
                   <p className="text-xs text-zinc-500">Ended</p>
                   <p className="text-sm text-zinc-300">
-                    {currentSession.endedAt ? new Date(currentSession.endedAt).toLocaleString() : 'N/A'}
+                    {currentSession.endedAt
+                      ? new Date(currentSession.endedAt).toLocaleString()
+                      : 'N/A'}
                   </p>
                 </div>
               </div>
@@ -418,17 +473,23 @@ export default function SessionDetail() {
                 <div className="grid grid-cols-3 gap-4">
                   <div className="rounded-lg bg-zinc-800 p-3 text-center">
                     <FileText className="mx-auto mb-1 h-5 w-5 text-indigo-500" />
-                    <p className="text-lg font-bold text-zinc-100">{currentSession.transcriptCount}</p>
+                    <p className="text-lg font-bold text-zinc-100">
+                      {currentSession.transcriptCount}
+                    </p>
                     <p className="text-xs text-zinc-500">Transcripts</p>
                   </div>
                   <div className="rounded-lg bg-zinc-800 p-3 text-center">
                     <Activity className="mx-auto mb-1 h-5 w-5 text-emerald-500" />
-                    <p className="text-lg font-bold text-zinc-100">{currentSession.aiResponseCount}</p>
+                    <p className="text-lg font-bold text-zinc-100">
+                      {currentSession.aiResponseCount}
+                    </p>
                     <p className="text-xs text-zinc-500">Responses</p>
                   </div>
                   <div className="rounded-lg bg-zinc-800 p-3 text-center">
                     <Image className="mx-auto mb-1 h-5 w-5 text-amber-500" />
-                    <p className="text-lg font-bold text-zinc-100">{currentSession.screenshotCount}</p>
+                    <p className="text-lg font-bold text-zinc-100">
+                      {currentSession.screenshotCount}
+                    </p>
                     <p className="text-xs text-zinc-500">Screenshots</p>
                   </div>
                 </div>

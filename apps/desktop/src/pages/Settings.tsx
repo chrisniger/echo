@@ -256,17 +256,11 @@ export default function Settings() {
         </div>
       </Section>
 
-      <Section
-        title="Question Detection"
-        icon={<Brain className="h-5 w-5 text-fuchsia-500" />}
-      >
+      <Section title="Question Detection" icon={<Brain className="h-5 w-5 text-fuchsia-500" />}>
         <QuestionDetectionSettings />
       </Section>
 
-      <Section
-        title="Question Triggers"
-        icon={<HelpCircle className="h-5 w-5 text-amber-500" />}
-      >
+      <Section title="Question Triggers" icon={<HelpCircle className="h-5 w-5 text-amber-500" />}>
         <QuestionTriggersEditor />
       </Section>
 
@@ -468,10 +462,10 @@ function QuestionTriggersEditor() {
   return (
     <div className="space-y-3">
       <p className="text-xs text-zinc-500">
-        Extra phrases (matched anywhere in a transcript segment) that should be treated as
-        questions and forwarded to the AI. The built-in detector already recognises "what",
-        "why", "how", "walk me through", "tell me about", "right?" and more — add anything
-        specific to your interviews.
+        Extra phrases (matched anywhere in a transcript segment) that should be treated as questions
+        and forwarded to the AI. The built-in detector already recognises "what", "why", "how",
+        "walk me through", "tell me about", "right?" and more — add anything specific to your
+        interviews.
       </p>
 
       <div className="flex flex-wrap gap-2">
@@ -557,8 +551,8 @@ function QuestionDetectionSettings() {
   return (
     <div className="space-y-5">
       <p className="text-xs text-zinc-500">
-        The detection engine runs every captured transcript segment through a four-layer
-        pipeline and only triggers an AI answer when confidence exceeds the threshold.
+        The detection engine runs every captured transcript segment through a four-layer pipeline
+        and only triggers an AI answer when confidence exceeds the threshold.
       </p>
 
       <div className="flex items-center justify-between">
@@ -569,6 +563,22 @@ function QuestionDetectionSettings() {
           <p className="text-xs text-zinc-500">Master switch. Off = no auto-answer.</p>
         </div>
         <Switch checked={qd.enabled} onCheckedChange={(v) => set('enabled', v)} />
+      </div>
+
+      <div className="flex items-center justify-between rounded-md border border-amber-500/20 bg-amber-500/5 p-3">
+        <div>
+          <Label className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-amber-400" /> Interview Mode Force-Send
+          </Label>
+          <p className="text-xs text-zinc-500">
+            In Interview sessions, send every flushed utterance to the AI even when no question is
+            detected.
+          </p>
+        </div>
+        <Switch
+          checked={settings.enableInterviewForceSend}
+          onCheckedChange={(v) => updateSetting('enableInterviewForceSend', v)}
+        />
       </div>
 
       <div className="space-y-2">
@@ -599,7 +609,8 @@ function QuestionDetectionSettings() {
           className="w-full h-2 rounded-full appearance-none bg-zinc-800 cursor-pointer accent-fuchsia-500"
         />
         <p className="text-xs text-zinc-500">
-          How many previous transcript segments the engine keeps in memory. Larger = better follow-up detection.
+          How many previous transcript segments the engine keeps in memory. Larger = better
+          follow-up detection.
         </p>
       </div>
 
@@ -643,8 +654,8 @@ function QuestionDetectionSettings() {
             placeholder="e.g. llama-3.1-8b-instant (Groq) or gpt-4o-mini (OpenAI)"
           />
           <p className="text-xs text-zinc-500">
-            Provider fallback is automatic: Groq → OpenAI → DeepSeek. Set this to force a
-            specific model.
+            Provider fallback is automatic: Groq → OpenAI → DeepSeek. Set this to force a specific
+            model.
           </p>
         </div>
       )}
@@ -658,8 +669,8 @@ function QuestionDetectionSettings() {
             </span>
           </Label>
           <p className="text-xs text-zinc-500">
-            Add any phrase (lowercased) that should always be treated as a question trigger.
-            Format: <code className="text-amber-300">category:Behavioral: tell me about a time</code> to
+            Add any phrase (lowercased) that should always be treated as a question trigger. Format:{' '}
+            <code className="text-amber-300">category:Behavioral: tell me about a time</code> to
             attach a category hint, or just a bare phrase.
           </p>
           <div className="flex flex-wrap gap-2">

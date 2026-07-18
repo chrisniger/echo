@@ -38,6 +38,12 @@ export interface UserSettings {
     /** Optional model override for the AI classifier */
     classifierModel?: string;
   };
+  /**
+   * In Interview sessions, treat every flushed utterance as an AI query
+   * (after the cooldown) even when the question detector does not
+   * classify it as a question. Other session types still require detection.
+   */
+  enableInterviewForceSend: boolean;
 }
 
 export interface Subscription {

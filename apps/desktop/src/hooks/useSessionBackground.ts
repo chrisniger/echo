@@ -18,6 +18,11 @@ import {
 } from '../services/intelligence';
 import type { SessionType } from '@echo-gpt/shared-types';
 
+export interface CooldownState {
+  isInCooldown: boolean;
+  remainingMs: number;
+}
+
 export interface UseSessionBackgroundOptions {
   enabled: boolean;
   source: 'microphone' | 'system' | 'mixed';
@@ -25,7 +30,12 @@ export interface UseSessionBackgroundOptions {
   gatewayUrl?: string;
   questionCooldownMs?: number;
   onLog?: (line: string) => void;
-  onCaptureStateChange?: (state: { isCapturing: boolean; source: string; error: string | null }) => void;
+  onCaptureStateChange?: (state: {
+    isCapturing: boolean;
+    source: string;
+    error: string | null;
+  }) => void;
+  onCooldownChange?: (state: CooldownState) => void;
 }
 
 interface Segment {
@@ -44,9 +54,7 @@ interface TranscriptionResult {
   error?: string;
 }
 
-async function transcribeViaTauri(
-  gatewayUrl?: string,
-): Promise<TranscriptionResult | null> {
+async function transcribeViaTauri(gatewayUrl?: string): Promise<TranscriptionResult | null> {
   try {
     const result = await invoke<TranscriptionResult>('transcribe_audio', {
       gatewayUrl: gatewayUrl ?? null,
@@ -69,15 +77,24 @@ async function fetchAiAnswer(args: {
   language?: string;
   sessionType?: SessionType;
   transcriptSegments: Array<{ speaker: string; text: string; timestamp: number }>;
-}): Promise<{ content: string; model: string; provider: string; tokensUsed: { total: number } } | null> {
+}): Promise<{
+  content: string;
+  model: string;
+  provider: string;
+  tokensUsed: { total: number };
+} | null> {
   const template = getPromptTemplate(args.questionCategory);
   // Compose the additional-context block. The session-type opening directive
   // is prepended *once* by the AI Gateway's ContextAssembler when we forward
   // sessionType below — we deliberately do NOT inline it here to avoid
   // duplicating tokens.
   const contextBlocks = [
-    args.additionalContext?.trim() ? `User-supplied additional context:\n${args.additionalContext.trim()}` : '',
-    template.system?.trim() ? `Question-category goal (${args.questionCategory}):\n${template.system.trim()}` : '',
+    args.additionalContext?.trim()
+      ? `User-supplied additional context:\n${args.additionalContext.trim()}`
+      : '',
+    template.system?.trim()
+      ? `Question-category goal (${args.questionCategory}):\n${template.system.trim()}`
+      : '',
   ].filter(Boolean);
   const customContext = contextBlocks.join('\n\n');
 
@@ -122,9 +139,11 @@ export function useSessionBackground({
   questionCooldownMs = 15000,
   onLog,
   onCaptureStateChange,
+  onCooldownChange,
 }: UseSessionBackgroundOptions): void {
   const captureRunningRef = useRef(false);
   const lastQuestionAtRef = useRef(0);
+  const cooldownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastAcceptedTranscriptRef = useRef('');
   const lastAcceptedTranscriptAtRef = useRef(0);
   const pendingUtteranceRef = useRef<string[]>([]);
@@ -175,19 +194,22 @@ export function useSessionBackground({
       enableClassifier: qd.enableClassifier,
       customPatterns: qd.questionPatterns ?? [],
       classifierModel: qd.classifierModel,
-      gatewayUrl: gatewayUrl || (import.meta.env.VITE_GATEWAY_API_URL as string) || 'http://localhost:4001',
+      gatewayUrl:
+        gatewayUrl || (import.meta.env.VITE_GATEWAY_API_URL as string) || 'http://localhost:4001',
       getAccessToken,
     };
-        const engine = createQuestionDetectionEngine(engineConfig);
+    const engine = createQuestionDetectionEngine(engineConfig);
     engine.onLog = (l: DetectLog) => {
       const layer = l.layer ?? 'none';
       log(
         `DETECT [${layer}] isQ=${l.isQuestion} conf=${l.confidence.toFixed(2)} cat=${l.category} ` +
-        `mode=${l.sessionMode}${l.rule ? ` rule=${l.rule}` : ''}` +
-        (l.classifierConfidence !== undefined ? ` classifier[conf=${l.classifierConfidence.toFixed(2)},cat=${l.classifierCategory}]` : '') +
-        (l.classifierSkipped ? ` classifier=skip(${l.classifierSkippedReason})` : '') +
-        (l.classifierError ? ` classifierError=${l.classifierError}` : '') +
-        ` (${l.processingTimeMs}ms) text="${l.segment.slice(0, 80)}${l.segment.length > 80 ? '…' : ''}"`,
+          `mode=${l.sessionMode}${l.rule ? ` rule=${l.rule}` : ''}` +
+          (l.classifierConfidence !== undefined
+            ? ` classifier[conf=${l.classifierConfidence.toFixed(2)},cat=${l.classifierCategory}]`
+            : '') +
+          (l.classifierSkipped ? ` classifier=skip(${l.classifierSkippedReason})` : '') +
+          (l.classifierError ? ` classifierError=${l.classifierError}` : '') +
+          ` (${l.processingTimeMs}ms) text="${l.segment.slice(0, 80)}${l.segment.length > 80 ? '…' : ''}"`,
       );
     };
 
@@ -255,7 +277,10 @@ export function useSessionBackground({
         // Silent audio can produce the same hallucinated phrase on every tick.
         // Accept the first occurrence, but suppress an exact repeat arriving
         // shortly afterwards so it cannot fill the transcript indefinitely.
-        const normalized = text.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+        const normalized = text
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, ' ')
+          .trim();
         const now = Date.now();
         if (
           normalized &&
@@ -322,23 +347,57 @@ export function useSessionBackground({
         return;
       }
 
-      if (!detection.isQuestion) {
+      const isInterviewMode = session.sessionType === 'Interview';
+      const interviewForceSend =
+        useSettingsStore.getState().settings.enableInterviewForceSend ?? true;
+
+      // In Interview sessions, every flushed utterance is treated as a query
+      // after the cooldown passes. Other session types still require the
+      // detector to classify the utterance as a question.
+      if (!detection.isQuestion && !(isInterviewMode && interviewForceSend)) {
         return;
       }
 
+      // When forcing a send in interview mode, fall back to a generic
+      // interview category so the prompt router still gets a useful template.
+      const questionCategory = detection.isQuestion ? detection.category : 'Behavioral';
+      const matchedLayer = detection.isQuestion ? detection.matchedLayer : 'interview-mode-forced';
+      const confidence = detection.isQuestion ? detection.confidence : 1.0;
+
       const now = Date.now();
       if (now - lastQuestionAtRef.current < questionCooldownMs) {
-        log(`Question (${detection.matchedLayer ?? '?'}@${detection.confidence.toFixed(2)}, ${detection.category}) within cooldown, skipping: "${combinedText}"`);
+        log(
+          `Question (${matchedLayer ?? '?'}@${confidence.toFixed(2)}, ${questionCategory}) within cooldown, skipping: "${combinedText}"`,
+        );
         return;
       }
       lastQuestionAtRef.current = now;
 
-      log(`Question (${detection.matchedLayer ?? '?'}@${detection.confidence.toFixed(2)}, ${detection.category}, mode=${detection.sessionMode}): "${combinedText}" — sending to AI`);
+      // Start the visual cooldown countdown for the UI
+      if (cooldownTimerRef.current) {
+        clearInterval(cooldownTimerRef.current);
+        cooldownTimerRef.current = null;
+      }
+      onCooldownChange?.({ isInCooldown: true, remainingMs: questionCooldownMs });
+      cooldownTimerRef.current = setInterval(() => {
+        const remaining = Math.max(
+          0,
+          questionCooldownMs - (Date.now() - lastQuestionAtRef.current),
+        );
+        onCooldownChange?.({ isInCooldown: remaining > 0, remainingMs: remaining });
+        if (remaining === 0 && cooldownTimerRef.current) {
+          clearInterval(cooldownTimerRef.current);
+          cooldownTimerRef.current = null;
+        }
+      }, 250);
+
+      log(
+        `Question (${matchedLayer ?? '?'}@${confidence.toFixed(2)}, ${questionCategory}, mode=${detection.sessionMode}${isInterviewMode && !detection.isQuestion ? ', interview-forced' : ''}): "${combinedText}" — sending to AI`,
+      );
 
       const recentSegments = useSessionStore
         .getState()
-        .transcript
-        .slice(-10)
+        .transcript.slice(-10)
         .map((t) => ({
           speaker: t.speakerLabel || 'Speaker',
           text: t.text,
@@ -347,7 +406,7 @@ export function useSessionBackground({
 
       const answer = await fetchAiAnswer({
         question: combinedText,
-        questionCategory: detection.category,
+        questionCategory,
         sessionId: session.id,
         aiModel: session.aiModel || 'deepseek-chat',
         additionalContext: (session as any).additionalContext || (session as any).context || '',
@@ -390,7 +449,9 @@ export function useSessionBackground({
           confidence: detection.confidence,
         },
       });
-      log(`AI response broadcast (${answer.content.length} chars, ${answer.tokensUsed.total} tokens, ${detection.category}/${detection.sessionMode})`);
+      log(
+        `AI response broadcast (${answer.content.length} chars, ${answer.tokensUsed.total} tokens, ${detection.category}/${detection.sessionMode})`,
+      );
     };
 
     const tick = async () => {
@@ -412,7 +473,9 @@ export function useSessionBackground({
         if (result.provider === 'none') {
           log('No STT provider configured (set GROQ_API_KEY in ai-gateway/.env)');
         } else {
-          log(`Transcription tick: 0 segments (${result.duration.toFixed(1)}s of audio, provider ${result.provider ?? 'unknown'})`);
+          log(
+            `Transcription tick: 0 segments (${result.duration.toFixed(1)}s of audio, provider ${result.provider ?? 'unknown'})`,
+          );
         }
         // A no-speech tick is the end-of-utterance boundary. Flush all
         // transcript batches collected since the previous silence.
@@ -443,6 +506,11 @@ export function useSessionBackground({
     return () => {
       stopped = true;
       if (pollTimer) clearInterval(pollTimer);
+      if (cooldownTimerRef.current) {
+        clearInterval(cooldownTimerRef.current);
+        cooldownTimerRef.current = null;
+      }
+      onCooldownChange?.({ isInCooldown: false, remainingMs: 0 });
       if (captureRunningRef.current) {
         invoke('stop_capture').catch(() => undefined);
         captureRunningRef.current = false;
@@ -458,6 +526,11 @@ export function useSessionBackground({
         clearInterval(transcriptionTimerRef.current);
         transcriptionTimerRef.current = null;
       }
+      if (cooldownTimerRef.current) {
+        clearInterval(cooldownTimerRef.current);
+        cooldownTimerRef.current = null;
+      }
+      onCooldownChange?.({ isInCooldown: false, remainingMs: 0 });
       return;
     }
 
