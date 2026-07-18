@@ -6,19 +6,19 @@ export const PROVIDER_DEFAULTS: Record<
 > = {
   openai: {
     baseUrl: 'https://api.openai.com/v1',
-    models: ['gpt-4o', 'gpt-4-turbo', 'gpt-3.5-turbo'],
+    models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'],
   },
   anthropic: {
     baseUrl: 'https://api.anthropic.com/v1',
-    models: ['claude-3-opus', 'claude-3-sonnet', 'claude-3-haiku', 'claude-4'],
+    models: ['claude-4-opus', 'claude-4-sonnet', 'claude-3.5-sonnet', 'claude-3-opus', 'claude-3-sonnet', 'claude-3-haiku'],
   },
   gemini: {
     baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
-    models: ['gemini-2.0-flash', 'gemini-2.0-pro'],
+    models: ['gemini-2.0-flash', 'gemini-2.0-pro', 'gemini-1.5-pro', 'gemini-1.5-flash'],
   },
   deepseek: {
     baseUrl: 'https://api.deepseek.com/v1',
-    models: ['deepseek-chat', 'deepseek-coder'],
+    models: ['deepseek-chat', 'deepseek-coder', 'deepseek-reasoner'],
   },
   openrouter: {
     baseUrl: 'https://openrouter.ai/api/v1',
@@ -26,7 +26,7 @@ export const PROVIDER_DEFAULTS: Record<
   },
   ollama: {
     baseUrl: 'http://localhost:11434',
-    models: ['ollama/llama3', 'ollama/mixtral'],
+    models: ['ollama/llama3', 'ollama/mixtral', 'ollama/qwen2.5', 'ollama/codellama'],
   },
 };
 

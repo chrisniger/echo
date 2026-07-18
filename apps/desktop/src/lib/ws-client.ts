@@ -1,4 +1,5 @@
 import { getAccessToken } from '../lib/auth';
+import type { SessionType } from '@echo-gpt/shared-types';
 
 export interface TranscriptUpdate {
   sessionId: string;
@@ -15,6 +16,16 @@ export interface AiResponseEvent {
   isFinal: boolean;
   finishReason?: string;
   tokensUsed?: { prompt: number; completion: number; total: number };
+  query?: string;
+  model?: string;
+  provider?: string;
+  responseId?: string;
+}
+
+export interface AiRequestEvent {
+  sessionId: string;
+  content: string;
+  fromDeviceId?: string;
 }
 
 export interface SessionEvent {
@@ -40,13 +51,32 @@ export interface NotificationEvent {
   data?: Record<string, unknown>;
 }
 
+/**
+ * Server → desktop: cloud-api PATCH /api/sessions/:id updated a session row.
+ * Currently triggers when the user reclassifies sessionType mid-session; the
+ * `updatedFields` array advertises which columns actually changed so future
+ * fields (e.g. `name`) can ride the same event without re-fetching.
+ */
+export interface SessionUpdatedEvent {
+  sessionId: string;
+  sessionType: SessionType;
+  transcriptionIntervalMs?: number;
+  /** Stored value BEFORE this update. Optional; omit the changed-toast UX when undefined. */
+  previousSessionType?: SessionType;
+  previousTranscriptionIntervalMs?: number;
+  updatedAt: string;
+  updatedFields: string[];
+}
+
 export type WsEvent =
   | { type: 'transcript.update'; data: TranscriptUpdate }
   | { type: 'ai.response'; data: AiResponseEvent }
+  | { type: 'ai.request'; data: AiRequestEvent }
   | { type: 'session.start'; data: SessionEvent }
   | { type: 'session.pause'; data: SessionEvent }
   | { type: 'session.resume'; data: SessionEvent }
   | { type: 'session.end'; data: SessionEvent }
+  | { type: 'session.updated'; data: SessionUpdatedEvent }
   | { type: 'device.connected'; data: DeviceEvent }
   | { type: 'device.disconnected'; data: DeviceEvent }
   | { type: 'notification'; data: NotificationEvent }
@@ -62,6 +92,7 @@ export class WsClient {
   private ws: WebSocket | null = null;
   private baseUrl: string;
   private handlers = new Map<string, Set<EventHandler>>();
+  private subscribedRooms = new Set<string>();
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 10;
   private reconnectDelay = 1000;
@@ -85,6 +116,7 @@ export class WsClient {
       this.isConnected = true;
       this.reconnectAttempts = 0;
       this.flushBuffer();
+      this.resubscribeRooms();
 
       this.pingInterval = setInterval(() => {
         this.send({ action: 'ping' });
@@ -121,10 +153,16 @@ export class WsClient {
   }
 
   subscribe(rooms: string[]): void {
+    for (const room of rooms) {
+      this.subscribedRooms.add(room);
+    }
     this.send({ action: 'subscribe', rooms });
   }
 
   unsubscribe(rooms: string[]): void {
+    for (const room of rooms) {
+      this.subscribedRooms.delete(room);
+    }
     this.send({ action: 'unsubscribe', rooms });
   }
 
@@ -190,6 +228,19 @@ export class WsClient {
         this.ws.send(JSON.stringify(event));
       }
     }
+  }
+
+  private resubscribeRooms(): void {
+    if (this.subscribedRooms.size === 0 || this.ws?.readyState !== WebSocket.OPEN) {
+      return;
+    }
+
+    this.ws.send(
+      JSON.stringify({
+        action: 'subscribe',
+        rooms: Array.from(this.subscribedRooms),
+      }),
+    );
   }
 
   bufferEvent(event: Record<string, unknown>): void {

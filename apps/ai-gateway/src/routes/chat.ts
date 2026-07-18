@@ -9,18 +9,27 @@ import type { AiModel, ChatMessage } from '@echo-gpt/shared-types';
 const chatRequestSchema = z.object({
   model: z.enum([
     'gpt-4o',
+    'gpt-4o-mini',
     'gpt-4-turbo',
     'gpt-3.5-turbo',
+    'claude-4-opus',
+    'claude-4-sonnet',
+    'claude-3.5-sonnet',
     'claude-3-opus',
     'claude-3-sonnet',
     'claude-3-haiku',
     'gemini-2.0-flash',
     'gemini-2.0-pro',
+    'gemini-1.5-pro',
+    'gemini-1.5-flash',
     'deepseek-chat',
     'deepseek-coder',
+    'deepseek-reasoner',
     'openrouter/auto',
     'ollama/llama3',
     'ollama/mixtral',
+    'ollama/qwen2.5',
+    'ollama/codellama',
   ]),
   messages: z.array(
     z.object({
@@ -59,6 +68,7 @@ const contextSchema = z.object({
     .optional(),
   customContext: z.string().optional(),
   language: z.string().optional(),
+  sessionType: z.string().max(40).optional(),
 });
 
 export function createChatRouter(routerInstance: AiRouter, cache?: PromptCache): Router {
@@ -67,8 +77,10 @@ export function createChatRouter(routerInstance: AiRouter, cache?: PromptCache):
   const tokenCounter = new TokenCounter();
 
   router.post('/chat', async (req, res) => {
+    let requestedModel: string | undefined;
     try {
       const parsed = chatRequestSchema.parse(req.body);
+      requestedModel = parsed.model;
       const result = await routerInstance.chat(parsed, (req as any).signal);
       res.json(result);
     } catch (err) {
@@ -76,7 +88,12 @@ export function createChatRouter(routerInstance: AiRouter, cache?: PromptCache):
         res.status(400).json({ error: 'Validation error', details: err.errors });
       } else {
         const message = err instanceof Error ? err.message : 'Internal server error';
-        res.status(500).json({ error: message });
+        console.error(`[Chat] ${requestedModel ?? 'unknown'} failed: ${message}`);
+        const isUpstream = /provider|model|API error|quota|rate.?limit|unavailable|not found|invalid/i.test(message);
+        res.status(isUpstream ? 502 : 500).json({
+          error: message,
+          model: requestedModel,
+        });
       }
     }
   });

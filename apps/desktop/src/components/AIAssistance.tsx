@@ -1,6 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { Send, StopCircle, Bot, User as UserIcon } from 'lucide-react';
 import { useSettingsStore } from '../stores/settings';
+import { useSessionStore } from '../stores/session';
+import { gatewayApi } from '../lib/api';
+import { buildContextMessages } from '../lib/context';
+import { getWsClient } from '../hooks/useWebSocket';
 import { cn } from '../lib/utils';
 import { Button } from './ui/button';
 
@@ -11,11 +15,21 @@ interface Message {
   timestamp: Date;
 }
 
-const contextChips = [
-  { label: 'CV', active: true },
-  { label: 'Transcript', active: true },
-  { label: 'Screenshot', active: false },
-];
+type AssistSession = {
+  cvContent?: string;
+  documents?: Array<{ id?: string; name: string; content: string }>;
+  additionalContext?: string;
+} | null;
+
+function buildContextChips(session: AssistSession): Array<{ label: string; active: boolean }> {
+  const docs = session?.documents?.length ?? 0;
+  return [
+    { label: 'CV', active: !!session?.cvContent },
+    { label: docs > 0 ? `Documents (${docs})` : 'Documents', active: docs > 0 },
+    { label: 'Additional Context', active: !!session?.additionalContext },
+    { label: 'Transcript', active: true },
+  ];
+}
 
 function renderMarkdown(text: string): string {
   return text
@@ -38,6 +52,7 @@ export default function AIAssistance() {
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const settings = useSettingsStore((s) => s.settings);
+  const { currentSession, transcript } = useSessionStore();
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -57,16 +72,103 @@ export default function AIAssistance() {
     setInput('');
     setIsLoading(true);
 
-    setTimeout(() => {
+    try {
+      const session = currentSession;
+      const conversationHistory = messages
+        .filter((m) => m.role === 'user' || m.role === 'assistant')
+        .map((m) => ({
+          role: m.role as 'user' | 'assistant',
+          content: m.content,
+        }));
+
+      // Build the baseline context (CV + documents + additionalContext) via
+      // the Gateway's ContextAssembler so every AI call has a uniform system
+      // prompt rooted in the candidate's CV and the user's instructions.
+      const baseMessages = await buildContextMessages({
+        cv: session?.cvContent,
+        customContext: session?.additionalContext,
+        documents: session?.documents,
+        language: session?.language,
+        sessionType: session?.sessionType,
+      });
+
+      console.log('[AIAssistance] Sending chat request to AI Gateway...');
+      console.log('[AIAssistance] Model:', session?.aiModel || settings.defaultAiModel);
+      console.log('[AIAssistance] Base context messages:', baseMessages.length);
+      console.log('[AIAssistance] History:', conversationHistory.length);
+
+      const response = await gatewayApi.post<{
+        content: string;
+        model: string;
+        provider: string;
+        tokensUsed: { prompt: number; completion: number; total: number };
+      }>('/chat', {
+        model: session?.aiModel || settings.defaultAiModel,
+        messages: [
+          ...baseMessages,
+          ...conversationHistory,
+          { role: 'user' as const, content: input.trim() },
+        ],
+        stream: false,
+        temperature: 0.7,
+        maxTokens: 2000,
+        sessionId: session?.id,
+      });
+
+      console.log('[AIAssistance] Received response:', response);
+
+      const responseId = crypto.randomUUID();
       const aiMessage: Message = {
-        id: crypto.randomUUID(),
+        id: responseId,
         role: 'assistant',
-        content: 'This is a simulated response. The AI gateway integration will be connected in a future phase.',
+        content: response.content,
         timestamp: new Date(),
       };
+
       setMessages((prev) => [...prev, aiMessage]);
+
+      if (currentSession) {
+        useSessionStore.getState().addAiResponse({
+          id: responseId,
+          sessionId: currentSession.id,
+          query: input.trim(),
+          response: response.content,
+          model: response.model,
+          provider: response.provider,
+          tokensUsed: response.tokensUsed.total,
+          createdAt: new Date().toISOString(),
+        });
+
+        // Broadcast AI response to Companion via WebSocket
+        const wsClient = getWsClient();
+        wsClient.send({
+          action: 'ai.response',
+          data: {
+            sessionId: currentSession.id,
+            content: response.content,
+            isFinal: true,
+            finishReason: response.tokensUsed ? 'stop' : undefined,
+            tokensUsed: response.tokensUsed,
+            query: input.trim(),
+            responseId,
+          },
+        });
+      }
+    } catch (error) {
+      console.error('[AIAssistance] Error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorDetails = error instanceof Error && 'body' in error ? JSON.stringify((error as any).body) : '';
+
+      const message: Message = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: `Sorry, I encountered an error: ${errorMessage}${errorDetails ? `\n\nDetails: ${errorDetails}` : ''}\n\nPlease ensure:\n1. The AI Gateway is running (cd apps/ai-gateway && npm run dev)\n2. Your DeepSeek API key is configured in apps/ai-gateway/.env\n3. The Cloud API is running (cd apps/cloud-api && npm run dev)`,
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, message]);
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -79,7 +181,7 @@ export default function AIAssistance() {
   return (
     <div className="flex h-full flex-col">
       <div className="flex-1 overflow-y-auto space-y-4 p-4">
-        {messages.map((msg) => (
+        {[...messages].reverse().map((msg) => (
           <div
             key={msg.id}
             className={cn(
@@ -138,7 +240,7 @@ export default function AIAssistance() {
 
       <div className="border-t border-zinc-800 p-4">
         <div className="mb-2 flex flex-wrap gap-2">
-          {contextChips.map((chip) => (
+          {buildContextChips(currentSession).map((chip) => (
             <span
               key={chip.label}
               className={cn(

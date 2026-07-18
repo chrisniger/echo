@@ -1,4 +1,9 @@
-import type { ContextPayload, ChatMessage } from '@echo-gpt/shared-types';
+import {
+  SESSION_TYPE_PROMPTS,
+  coerceSessionType,
+  type ContextPayload,
+  type ChatMessage,
+} from '@echo-gpt/shared-types';
 
 const SYSTEM_PROMPT_BASE =
   'You are Echo, an AI assistant for professional interviews, meetings, and coding assessments. You help users by providing real-time assistance during sessions. You are knowledgeable, concise, and professional.';
@@ -13,6 +18,22 @@ export class ContextAssembler {
     let totalChars = 0;
 
     const systemParts: string[] = [SYSTEM_PROMPT_BASE];
+
+    // Session-type role directive. Placed FIRST (before language) so the AI
+    // adopts the right persona immediately.
+    //
+    // coerceSessionType narrows the untrusted `string | undefined` payload
+    // into a known SessionType before the Record lookup, so a typo like
+    // "Interviewr" degrades to the 'General' persona rather than silently
+    // skipping the directive.
+    //
+    // Note on policy: this is silent fallback ('General' on garbage). The
+    // cloud-api POST /sessions rejects invalid sessionType with 400 at the
+    // WRITE boundary; here at the prompt-assembly layer we treat garbage as
+    // 'General' so the AI still produces a useful answer rather than 5xx-ing.
+    if (payload.sessionType) {
+      systemParts.unshift(SESSION_TYPE_PROMPTS[coerceSessionType(payload.sessionType)]);
+    }
 
     if (payload.language && payload.language !== 'en') {
       const langNames: Record<string, string> = {

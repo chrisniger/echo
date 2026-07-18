@@ -1,10 +1,11 @@
-import { useState } from 'react';
-import { Puzzle, Settings, Shield, ChevronDown, ChevronRight, ExternalLink, Power, PowerOff } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Puzzle, Settings, Shield, ChevronDown, ChevronRight, ExternalLink, Power, PowerOff, Plus } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Button } from './ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
 import { Switch } from './ui/switch';
+import { usePluginStore } from '../stores/plugin';
 
 interface PluginPermission {
   name: string;
@@ -22,61 +23,31 @@ interface PluginEntry {
   settings?: Record<string, string>;
 }
 
-const mockPlugins: PluginEntry[] = [
-  {
-    id: 'jira',
-    name: 'Jira',
-    description: 'Create and update Jira tickets directly from Echo sessions',
-    version: '1.2.0',
-    author: 'Echo Team',
-    enabled: true,
-    permissions: [
-      { name: 'Read projects', description: 'View Jira projects and issues' },
-      { name: 'Create issues', description: 'Create new Jira tickets' },
-      { name: 'Update issues', description: 'Update existing ticket status' },
-    ],
-  },
-  {
-    id: 'slack',
-    name: 'Slack',
-    description: 'Send session summaries and action items to Slack channels',
-    version: '1.0.1',
-    author: 'Echo Team',
-    enabled: false,
-    permissions: [
-      { name: 'Send messages', description: 'Post messages to channels' },
-      { name: 'Read channels', description: 'Read channel history' },
-    ],
-  },
-  {
-    id: 'github',
-    name: 'GitHub',
-    description: 'Link sessions to GitHub issues, PRs, and code reviews',
-    version: '0.9.0',
-    author: 'Echo Team',
-    enabled: true,
-    permissions: [
-      { name: 'Read repos', description: 'View repository data' },
-      { name: 'Create issues', description: 'Create GitHub issues' },
-      { name: 'Read PRs', description: 'View pull request status' },
-    ],
-  },
-];
-
 export default function PluginManager() {
-  const [plugins, setPlugins] = useState<PluginEntry[]>(mockPlugins);
+  const { plugins, loadPlugins, enablePlugin, disablePlugin, grantPermission, revokePermission } = usePluginStore();
   const [expandedPlugin, setExpandedPlugin] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState<string | null>(null);
 
+  useEffect(() => {
+    loadPlugins();
+  }, [loadPlugins]);
+
   const togglePlugin = (id: string) => {
-    setPlugins((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, enabled: !p.enabled } : p)),
-    );
+    const plugin = plugins.find(p => p.id === id);
+    if (plugin) {
+      if (plugin.enabled) {
+        disablePlugin(id);
+      } else {
+        enablePlugin(id);
+      }
+    }
   };
 
   const currentPlugin = expandedPlugin
     ? plugins.find((p) => p.id === expandedPlugin)
     : null;
+
+  const currentPluginPermissions = currentPlugin?.permissions ?? [];
 
   return (
     <Card>
@@ -143,9 +114,19 @@ export default function PluginManager() {
                       <p className="text-xs font-medium text-zinc-400">Permissions</p>
                     </div>
                     <div className="space-y-1">
-                      {plugin.permissions.map((perm) => (
+                      {currentPluginPermissions.map((perm) => (
                         <div key={perm.name} className="flex items-start gap-2 rounded-md bg-zinc-800/50 px-2 py-1.5">
-                          <div className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-zinc-600" />
+                          <Switch
+                            checked={perm.granted}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                grantPermission(currentPlugin!.id, perm.name);
+                              } else {
+                                revokePermission(currentPlugin!.id, perm.name);
+                              }
+                            }}
+                            className="scale-75 mt-0.5"
+                          />
                           <div>
                             <p className="text-xs font-medium text-zinc-300">{perm.name}</p>
                             <p className="text-xs text-zinc-500">{perm.description}</p>
@@ -166,8 +147,26 @@ export default function PluginManager() {
                   </Button>
 
                   {showSettings === plugin.id && (
-                    <div className="rounded-md bg-zinc-800/50 p-3">
-                      <p className="text-xs text-zinc-500">No configurable settings for this plugin.</p>
+                    <div className="rounded-md bg-zinc-800/50 p-3 space-y-2">
+                      {Object.keys(plugin.settings).length > 0 ? (
+                        Object.entries(plugin.settings).map(([key, value]) => (
+                          <div key={key}>
+                            <label className="text-xs text-zinc-400 capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</label>
+                            <input
+                              type={key.toLowerCase().includes('key') || key.toLowerCase().includes('token') ? 'password' : 'text'}
+                              value={value as string}
+                              onChange={(e) => {
+                                // In a real app, this would update the plugin settings
+                                console.log('Update setting:', key, e.target.value);
+                              }}
+                              className="w-full mt-1 px-2 py-1 text-sm bg-zinc-900 border border-zinc-700 rounded text-zinc-100"
+                              placeholder={`Enter ${key}`}
+                            />
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-xs text-zinc-500">No configurable settings for this plugin.</p>
+                      )}
                     </div>
                   )}
                 </div>

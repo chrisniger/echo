@@ -172,8 +172,14 @@ CREATE TABLE IF NOT EXISTS cv_library (
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   file_name TEXT NOT NULL,
+  file_path TEXT,
+  file_size INTEGER DEFAULT 0,
+  mime_type TEXT,
+  version INTEGER DEFAULT 1,
   tags TEXT,
   is_default INTEGER DEFAULT 0,
+  parsed_data TEXT,
+  raw_text TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT
 );
@@ -184,6 +190,66 @@ CREATE TABLE IF NOT EXISTS email_logs (
   subject TEXT NOT NULL,
   body TEXT,
   sent_at TEXT,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS sessions (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  ai_model TEXT NOT NULL,
+  session_type TEXT DEFAULT 'General',
+  response_style TEXT DEFAULT 'concise',
+  audio_source TEXT DEFAULT 'microphone',
+  language TEXT DEFAULT 'en',
+  record_session INTEGER DEFAULT 1,
+  enable_transcript INTEGER DEFAULT 1,
+  transcription_interval_ms INTEGER DEFAULT 5000,
+  context TEXT,
+  cv_id TEXT,
+  cv_content TEXT,
+  document_ids TEXT,
+  documents_content TEXT,
+  status TEXT NOT NULL DEFAULT 'active',
+  duration INTEGER DEFAULT 0,
+  transcript_count INTEGER DEFAULT 0,
+  ai_response_count INTEGER DEFAULT 0,
+  screenshot_count INTEGER DEFAULT 0,
+  summary TEXT,
+  started_at TEXT NOT NULL,
+  ended_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS transcript_segments (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  speaker TEXT,
+  text TEXT NOT NULL,
+  start_time REAL,
+  end_time REAL,
+  confidence REAL,
+  is_final INTEGER DEFAULT 0,
+  timestamp INTEGER NOT NULL,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS ai_responses (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  query TEXT NOT NULL,
+  response TEXT NOT NULL,
+  model TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  tokens_used INTEGER DEFAULT 0,
+  latency_ms INTEGER,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS session_embeddings (
+  session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
+  embedding TEXT NOT NULL,
   created_at TEXT NOT NULL
 );
 `;

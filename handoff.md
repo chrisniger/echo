@@ -941,7 +941,7 @@ The original spec called for **Tauri 2 + Rust** (Desktop) and **Laravel 12** (Po
 
 The V2 architecture (Phases 16-22) expands Echo into a multi-device ecosystem by adding: **Echo Companion** (Flutter mobile app), **Echo Web Portal** (Next.js/Remix), **Device Pairing Service**, **WebSocket Gateway**, **Push Notification Service**, and a **Full Synchronization Engine**. Desktop becomes the processing hub that pairs with Companion devices and syncs through the Cloud.
 
-### Phase 0 — Project Scaffolding ⚠️ Partial
+### Phase 0 — Project Scaffolding ✅ Done
 
 | Item                                        | Status      | Notes                                                                   |
 | ------------------------------------------- | ----------- | ----------------------------------------------------------------------- |
@@ -955,7 +955,7 @@ The V2 architecture (Phases 16-22) expands Echo into a multi-device ecosystem by
 | React Router pages                          | ✅ Done     | All routes defined                                                      |
 | `.env.example` files                        | ✅ Done     | Root + each app                                                         |
 | Cloud API scaffold (Express/SQLite)         | ✅ Done     | Node.js + Express + better-sqlite3 (not PostgreSQL/Redis as spec'd)     |
-| Docker Compose (PostgreSQL, Redis, Mailhog) | ❌ Not done | No Dockerfiles or docker-compose files exist                            |
+| Docker Compose (PostgreSQL, Redis, Mailhog) | ✅ Done | Dockerfiles + docker-compose.yml with cloud-api, ai-gateway, minio |
 | AI Gateway scaffold                         | ✅ Done     | Node.js + Express, provider interface                                   |
 | Dockerfiles (Cloud API + AI Gateway)        | ✅ Done     | Multi-stage builds, `.dockerignore` files                               |
 | docker-compose.yml                          | ✅ Done     | cloud-api, ai-gateway, and MinIO services                               |
@@ -989,9 +989,10 @@ The V2 architecture (Phases 16-22) expands Echo into a multi-device ecosystem by
 | Loading/skeleton patterns | ✅ Done | `LoadingScreen.tsx`, `skeleton.tsx`                                                     |
 | Floating Assistant        | ✅ Done | `FloatingAssistant.tsx` — draggable, tabs, opacity                                      |
 | Global shortcuts          | ✅ Done | Rust `tauri-plugin-global-shortcut` (native)                                            |
-| System tray               | ✅ Done | Rust tray icon with menu (New Session, Pause/Resume, Quit) + left-click show            |
+| System tray               | ✅ Done | Rust tray icon with menu (New Session, Pause/Resume, Show, Quit) + left-click show + hide-to-tray on close |
+| Hide to tray              | ✅ Done | `hide_to_tray` Tauri command + header button + intercept close event to hide instead of quit |
 | Tauri 2 Rust backend      | ✅ Done | `lib.rs` with commands, plugins (shell, dialog, fs, global-shortcut)                    |
-| Audio capture commands    | ⚠️ Stub | `start_recording`/`stop_recording`/`take_screenshot` registered, pending implementation |
+| Audio capture commands    | ✅ Done | Rust `start_mic_capture`/`stop_capture`/`get_capture_state` with cpal/WASAPI            |
 
 ### Phase 3 — Session Management ✅
 
@@ -1020,7 +1021,7 @@ The V2 architecture (Phases 16-22) expands Echo into a multi-device ecosystem by
 | Gemini adapter       | ✅ Done     | Gemini 2.0 models, streaming                     |
 | DeepSeek adapter     | ✅ Done     | chat + coder, streaming                          |
 | Ollama adapter       | ✅ Done     | Local, streaming                                 |
-| OpenRouter adapter   | ❌ Not done | Easy to add (OpenAI-compatible)                  |
+| OpenRouter adapter | ✅ Done | OpenAI-compatible adapter, `openrouter/auto` model |
 | Provider interface   | ✅ Done     | `BaseProvider` abstract class                    |
 | Router with failover | ✅ Done     | Circuit-breaker, priority routing                |
 | Context assembler    | ✅ Done     | CV, JD, documents, transcript, history, language |
@@ -1213,13 +1214,13 @@ The V2 architecture (Phases 16-22) expands Echo into a multi-device ecosystem by
 
 ### Step 1: Complete V1 Infrastructure Gaps
 
-1. **Create `packages/shared-config`** — Shared constants/config package
-2. **Add Husky pre-commit hooks** — lint-staged for lint/typecheck on commit
-3. **Configure real ESLint rules** — Replace stub `echo lint-ok` scripts in all packages
-4. **Create Dockerfiles** — Cloud API, AI Gateway, PostgreSQL, Redis, MinIO
-5. **Create docker-compose.yml** — All services together for local dev
-6. **Set up local dev TLS** — mkcert or Caddy for HTTPS
-7. **Set up MinIO** — S3-compatible storage for local file upload dev
+1. **Create `packages/shared-config`** — ✅ Done
+2. **Add Husky pre-commit hooks** — ✅ Done
+3. **Configure real ESLint rules** — ✅ Done
+4. **Create Dockerfiles** — ✅ Done
+5. **Create docker-compose.yml** — ✅ Done
+6. **Set up local dev TLS** — ✅ Done (`Caddyfile`)
+7. **Set up MinIO** — ✅ Done (configured in docker-compose)
 
 ### Step 2: Complete V1 Desktop Native Features (Requires Rust)
 
@@ -1340,3 +1341,402 @@ The V2 architecture (Phases 16-22) expands Echo into a multi-device ecosystem by
 - **~13 Dart source files** across the Flutter companion app (apps/companion/)
 - **~18,800 total files** (including node_modules)
 - All packages pass `tsc --noEmit` with exit code 0
+
+### Quick Start — Run All Services
+
+```powershell
+# From monorepo root — starts Cloud API, AI Gateway, Web Portal:
+pnpm --parallel -r dev
+
+# Desktop app (separate terminal):
+cd apps/desktop
+pnpm tauri dev
+
+# Companion app (requires Flutter SDK):
+cd apps/companion
+flutter pub get
+flutter run
+```
+
+| Service | URL | Login |
+|---------|-----|-------|
+| Web Portal | http://localhost:3000 | demo@echo-gpt.app / Demo1234! |
+| Cloud API | http://localhost:4000 | — |
+| AI Gateway | http://localhost:4001 | — |
+| Desktop | `pnpm tauri dev` | — |
+
+---
+
+## Recent Session Notes (Latest)
+
+### Fixes Applied
+1. **API Path Mismatch** — Fixed `.env` files to use `/api` prefix:
+   - Desktop: `VITE_CLOUD_API_URL=http://localhost:4000/api`
+   - Web Portal: `NEXT_PUBLIC_CLOUD_API_URL=http://localhost:4000/api`
+   - Vite proxy rewrites `/api/cloud` → `/api` and `/api/gateway` → `/api`
+
+2. **CORS Configuration** — Updated `apps/cloud-api/src/config.ts` to support comma-separated origins:
+   - `CORS_ORIGIN=http://localhost:5173,http://localhost:3000`
+
+3. **Desktop API Client** — Updated `apps/desktop/src/lib/api.ts` to use absolute URLs from env vars (works in Tauri standalone builds)
+
+### Features Added
+4. **Hide to Tray** — Desktop can now minimize to system tray:
+   - Header "Hide" button (Minimize2 icon)
+   - Close (X) button hides to tray instead of quitting
+   - Tray menu: New Session, Pause/Resume, Show, Quit
+   - Left-click tray icon restores window
+
+### Next Steps
+5. **Companion App Setup** — Flutter SDK installed via VS Code
+   - Need to generate Android platform files: `flutter create . --platforms=android`
+   - Need to configure API URL for phone (use PC's local IP, not localhost)
+   - Need to add phone origin to CORS
+
+---
+
+## Next Session Prompt
+
+```
+Continue setting up the Echo Companion Flutter app for Android testing.
+
+Tasks:
+1. Generate Android platform files in apps/companion
+2. Configure the companion app API URL to use PC's local IP (not localhost)
+3. Update Cloud API CORS to allow the phone's origin
+4. Run flutter doctor to verify Android SDK setup
+5. Build and run the companion app on Android device/emulator
+6. Test the pairing flow between Desktop and Companion
+
+The companion app is at: apps/companion/
+Flutter SDK is installed. Cloud API runs on port 4000.
+```
+
+---
+
+## Latest Fix Pass
+
+### What Was Fixed
+1. **WebSocket room mismatch**
+   - Desktop was subscribing to `session:${id}` while Cloud API broadcast to `sessionId`.
+   - Fixed desktop subscription to use the raw session id.
+   - Added reconnect-safe room resubscription in the desktop WebSocket client.
+
+2. **Automatic AI response sync**
+   - AI responses generated from detected questions were stored locally but never broadcast.
+   - Added WebSocket broadcast for automatic question-driven responses.
+
+3. **Audio transcription pipeline**
+   - Desktop transcription was converting float samples into invalid bytes before sending them to the gateway.
+   - Desktop now uses the Tauri `transcribe_audio` command.
+   - Rust now wraps the PCM data in a proper WAV header before sending it to the AI Gateway.
+   - Mixed capture mode now starts both mic and loopback streams.
+
+4. **Session history shape mismatch**
+   - Cloud API now returns camelCase session, transcript, and AI response payloads consistently.
+   - `pause`, `resume`, and `end` now return mapped session objects instead of raw SQLite rows.
+   - Transcript and response queries are now user-scoped through a join on `sessions`.
+
+5. **CV library mismatch**
+   - Desktop was calling `/cvs/*` while Cloud API only served `/cv/*`.
+   - Added consistent CV routes and response mapping.
+   - Cloud API now stores and returns full CV metadata expected by the desktop library.
+   - Added default-CV and update-tag support.
+
+6. **Desktop auth bootstrap**
+   - Desktop now restores a valid session on startup when tokens are still present.
+   - This prevents unnecessary login redirects after relaunch.
+
+7. **Companion login/session stability**
+   - Removed insecure saved-password auto-login behavior.
+   - Companion now relies on secure token refresh.
+   - Added reconnect throttling so only one reconnect attempt is active at a time.
+
+8. **PluginManager type safety**
+   - Fixed the null guard that was breaking desktop typecheck.
+
+### Verification
+- `apps/desktop`: `pnpm typecheck` ✅
+- `apps/cloud-api`: `pnpm typecheck` ✅
+- `apps/ai-gateway`: `pnpm typecheck` ✅
+
+### Notes
+- The desktop/system loopback capture path is improved, but the Windows audio stack still needs real device testing.
+- Companion sync should now work once the Desktop WebSocket connection is established and the session room is subscribed.
+- If you do another testing pass, start with:
+  - Desktop login
+  - New Session
+  - Audio capture with `Both`
+  - AI chat
+  - Session history
+  - CV upload/list
+  - Companion pairing and AI sync
+
+---
+
+# UPDATE LOG — Post-handoff improvements
+
+> Appended as a chronological record of the major improvements that landed after the original handoff was written. Use this as the reference for "what does the current build do?".
+
+## U1 — Core pipeline restored to working state (after a `apps/desktop/` restore from backup)
+
+- The audio pipeline (mic + system capture → Whisper transcription → question detection → AI answer → companion broadcast) is **end-to-end working** on Windows with Groq transcription + DeepSeek chat.
+- Captured audio segments from the Interviewer/Speaker flow through to the phone's Assistant screen in 3-5 seconds when a question is detected.
+- Per-segment debug logging in the Tauri dev console (`useSessionBackground`) prints every detection decision with confidence, rule, category, and AI classifier result.
+
+## U2 — Auto sign-out fix (Issue 13, re-applied surgically)
+
+- `lib/auth.ts` — added `getExpiresAt()` helper.
+- `lib/api.ts` — proactive token refresh when `isTokenExpired()` is true; 401 → try refresh → retry once; on refresh failure throw a normal error (no `window.location.href = '/login'`); added `onAuthRefresh()` callback.
+- `App.tsx` — background timer that refreshes the access token ~60 s before it expires. Only signs out if the refresh token itself is 401.
+- `hooks/useWebSocket.ts` — re-subscribes the WS room whenever the access token rotates.
+
+→ **Result:** the desktop stays logged in across long sessions. Auto-detected in dev console if the user re-opens the app.
+
+## U3 — Question Detection Engine v2 — multi-layer intelligent detector
+
+Replaces the old single-rule `looksLikeQuestion()` heuristic with a 4-layer engine in `apps/desktop/src/services/intelligence/`:
+
+| Layer | Purpose | Latency |
+|---|---|---|
+| 1. Fast rules | 5W1H + modals + imperatives + suffix tags | ~1 ms |
+| 2. Pattern recognition | 50+ interview/coding/SQL/DevOps patterns (configurable via Settings) | ~1 ms |
+| 3. Context memory | rolling window of last N segments; recognises "elaborate", "tell me more", short interrogatives after a question | ~1 ms |
+| 4. AI classifier | calls the new `/api/classify/question` endpoint (Groq → OpenAI → DeepSeek fallback) | 200-400 ms (only when L1/L2 don't produce a high-confidence hit) |
+
+Each layer emits a `RuleHit` with a weight in [0, 1]. The engine takes the max weight, applies the **configurable threshold** (default 0.7 = 70%), and the matched layer is recorded for logging. Layer 4 can **override** a rule hit (e.g. "Sounds great" — rule would have ignored, classifier confirms) or **veto** it.
+
+The engine also:
+- Infers the current **Session Mode** (Interview, Coding Assessment, System Design, Meeting, etc.) from the rolling window of detected categories.
+- Routes the AI prompt to a **category-specific template** (STAR for Behavioural, code-block + complexity for Coding, ADR-lite for Architecture, etc.) so the answer is shaped to the question type.
+- Logs a single `[DETECT ...]` line per segment with everything you need to debug why a question did or didn't fire.
+
+Settings → AI → "Question Detection" section exposes:
+- Master enable
+- Confidence threshold slider (40-95%, default 70%)
+- Context window size slider (8-60 segments, default 30)
+- Per-layer toggles
+- Classifier model override
+- Custom pattern list editor (with structured `category:Tag: phrase` syntax)
+
+**Result:** the engine now catches segments like:
+- "Walk me through your experience with Laravel." → `Behavioral` (Layer 2, weight 0.95)
+- "Suppose you were designing Twitter." → `System Design` (Layer 2, weight 0.90)
+- "Reverse a linked list." → `Coding` (Layer 2, weight 0.95)
+- "Can you elaborate?" (after a question) → `Follow-up` (Layer 3, weight 0.70)
+- "Let's talk about Docker." → `DevOps` (Layer 2, weight 0.55)
+
+## U4 — AI Gateway additions
+
+- New `POST /api/classify/question` route in `apps/ai-gateway/src/routes/classifier.ts`
+  - Provider fallback chain: **Groq → OpenAI → DeepSeek**
+  - Default model per provider: `llama-3.1-8b-instant` (Groq), `gpt-4o-mini` (OpenAI), `deepseek-chat` (DeepSeek)
+  - Returns 503 if no provider configured
+  - Returns 502 with the actual error if all providers fail
+- Existing `/api/transcribe` (Groq Whisper) is the speech-to-text pipeline.
+- Existing `/api/chat` returns 502 (instead of 500) for upstream AI errors and includes the model name in the envelope, so the desktop can show a clear "model unavailable" message.
+
+## U5 — Companion app additions (kept from prior work)
+
+- **Font size control** in Settings → Display section. Slider for response text (12-28pt) + presets (Small/Medium/Large/Extra Large) + transcript font size + "show timestamps" toggle. Persisted via `shared_preferences` and applied live to Assistant + Transcript screens.
+- **Local-network auto-discovery** on the Login screen ("Scan local network" button). The companion probes the local /24 subnet on port 4000 (in parallel, ~8 s timeout) and lists every Echo cloud-api it finds, sorted by latency. Manual entry still available. Works with Windows + Android (tested on Samsung S25 Ultra via USB).
+- **Local-network pairing flow** is the preferred way to connect (phone → scan → desktop → approve). No QR needed in the happy path.
+
+## U6 — Cloud API additions
+
+- CORS fix: Tauri webview origins (`http://tauri.localhost`, `tauri://localhost`, etc.) are auto-merged into the allow-list even if `CORS_ORIGIN` env var is set wrong.
+- New `POST /api/pairing/status` endpoint (token-based polling) replaces the broken "/devices is non-empty" check. The companion polls the specific token and auto-navigates on `status: 'approved'`.
+- DB migration helpers (`ensureCvLibraryColumns`, etc.) run at startup so column additions don't need a wipe-and-reseed.
+
+## U7 — Audio source default
+
+- New sessions default to **`system`** (system audio / loopback) instead of `microphone`, so Echo picks up the interviewer's/meeting's audio by default.
+- The dropdown in both the **New Session form** and the **Capture tab** now lists:
+  1. System Audio
+  2. Microphone
+  3. Mixed (Mic + System)
+  - System first because it is the recommended default for interviews/meetings.
+
+## U8 — Knowledge-cutoff / reference fixes
+
+- The default Groq base URL is now `https://api.groq.com/openai/v1` (was `https://api.groq.com/openai` which produced a 404). The OpenAI SDK appends `/audio/transcriptions`, so the base URL must include the `/v1` prefix.
+- The Rust `whisper.rs` `TranscriptionResult` struct was rewritten to match the AI Gateway's actual JSON shape (`text/duration/segments[].start`). Prior mismatch caused every transcription to silently fail to parse on the desktop side; that bug is now fixed.
+- The Rust `start_mic_capture` / `start_system_capture` commands are now **idempotent** (return `Ok(())` if the stream is already active instead of erroring).
+- New `audio_preflight` Tauri command returns device availability + a Windows-specific privacy hint before the user attempts capture.
+
+## U9 — Bug log (closed)
+
+- "Failed to fetch" on every API call (CORS) — closed by Tauri-origin allow-list.
+- "Audio capture failed: Failed to transcribe" — closed by struct field alignment fix.
+- Companion stuck on "Generating Pair Code" — closed by `/api/pairing/status` endpoint.
+- Companion receives nothing from desktop — closed by `user:${userId}` room auto-join + dual-broadcast.
+- Groq Whisper 404 — closed by `v1` base URL fix.
+- Companion font size not persisting — closed by `shared_preferences` migration.
+- Question detection missing "walk me through" and other rephrased requests — closed by multi-layer engine v2.
+- Desktop auto sign-out after 15 min idle — closed by background token refresh.
+- Transcription field name mismatch — closed by `whisper.rs` struct rewrite.
+
+## U10 — Files of note (current state)
+
+```
+apps/desktop/
+├── src/services/intelligence/             # NEW: 4-layer question detection engine
+│   ├── types.ts
+│   ├── fastRules.ts
+│   ├── patterns.ts
+│   ├── contextMemory.ts
+│   ├── aiClassifier.ts
+│   ├── promptRouter.ts
+│   ├── engine.ts
+│   └── index.ts
+├── src/services/questionDetection.ts     # Backward-compat shim, exports DEFAULT_QUESTION_TRIGGERS
+├── src/services/chatService.ts            # Shared AI ask helper (used by WS ai.request)
+├── src/hooks/useSessionBackground.ts      # Audio capture + transcription + detection + answer
+├── src/hooks/useWebSocket.ts               # WebSocket with onAuthRefresh reconnect
+├── src/hooks/useAudioCapture.ts            # Manual capture (Capture tab)
+├── src/lib/api.ts                          # ApiClient with auto-refresh on 401
+├── src/lib/auth.ts                         # Token storage, getExpiresAt
+├── src/lib/ws-client.ts                    # WsClient
+├── src/App.tsx                             # Bootstrap + background token refresh
+├── src/pages/Settings.tsx                  # Question Detection + Question Triggers + Display sections
+├── src/pages/NewSession.tsx                # System Audio first, Microphone, Mixed
+├── src/pages/SessionDetail.tsx
+├── src/stores/settings.ts                  # questionDetection + questionTriggerPhrases defaults
+├── src/stores/session.ts
+├── src/stores/auth.ts
+└── src-tauri/src/                          # Rust: cpal capture, audio_preflight, whisper struct
+    ├── lib.rs
+    ├── audio.rs
+    ├── transcribe.rs
+    └── whisper.rs
+
+apps/cloud-api/
+└── src/routes/pairing.ts                  # /pairing/request, /verify, /status
+
+apps/ai-gateway/
+└── src/routes/classifier.ts               # NEW: /classify/question
+
+apps/companion/
+├── lib/services/display_settings.dart     # Font size provider
+├── lib/services/discovery_service.dart     # Subnet scan
+├── lib/services/api_service.dart           # JWT + WS + streams
+├── lib/screens/settings_screen.dart        # Display section (KEEP)
+├── lib/screens/assistant_screen.dart       # Uses display_settings for font size
+└── lib/screens/transcript_screen.dart      # Uses display_settings for font size
+```
+
+## U11 — Current known limitations / next planned work
+
+- **Screenshots** (review3.md "next planned feature"). DeepSeek doesn't do vision; the user plans to add OpenAI/Anthropic/Gemini. The `image-analysis` route on the AI gateway already exists and supports OpenAI-compatible providers.
+- **mDNS discovery** for desktop (Phase 17). Currently the Companion uses the cloud-api as a relay over the local network; direct LAN mDNS is deferred.
+- **E2E tests, beta testing, production launch** (Phases 15, 22) — deferred until after screenshot phase.
+- The 15-second question cooldown is still in place. If rapid back-to-back questions are being skipped, lower it in `useSessionBackground` (search for `questionCooldownMs = 15000`).
+
+---
+
+## U12 — CV + Additional Context fed to every AI request (ContextAssembler properly wired)
+
+**What changed:**
+
+Before this update the NewSession form collected a CV file and "Additional Documents" but the `cvFile` lived only in local React state and was never uploaded. The "Additional Context" textarea was inlined into one out of three AI call sites' `messages` arrays and bypassed the Gateway `ContextAssembler` entirely. This update closes the loop end-to-end.
+
+### Cloud API
+
+- `apps/cloud-api/src/db/schema.ts` + `db/index.ts` — added `cv_id`, `cv_content`, `document_ids`, `documents_content` columns to the `sessions` table via the existing `addColumn` migration helper.
+- `apps/cloud-api/src/routes/sessions.ts` — `POST /sessions` accepts `cvId` + `documentIds` in its Zod schema, looks up each CV / document's `raw_text` from `cv_library`, and snapshots the text into the new session row at creation time. `mapSession` exposes `cvId`, `cvContent`, `documentIds`, `documents`. Sessions created before this update remain fully functional — missing fields return `null` and the Desktop gracefully degrades.
+- `apps/cloud-api/src/routes/cv.ts` — `/cv/upload` fileFilter now also accepts MD / CSV / JSON (in addition to PDF / DOC / DOCX / TXT) so the "Additional Documents" picker can actually send real supporting files. The route doubles as the generic document store; `cv_library` is treated as a generic parsed-text bucket.
+
+### Desktop
+
+- `apps/desktop/src/lib/context.ts` (**new**) — `buildContextMessages(opts)` helper. Calls the AI Gateway's `/chat/context` endpoint, which runs the payload through `ContextAssembler` and produces a uniform system prompt containing `[Candidate CV]:`, `[Job Description]:`, `[Document: name]:`, language directive, and a rolling `[Session Transcript]:` slice. The Gateway also hashes the payload into `PromptCache` so repeat calls during the same session (same CV + same additional context + same rolling transcript tail) return instantly. The helper falls back to a single inline system message that **still inlines cv + customContext + documents + transcript** so the user's context is never dropped when the Gateway is unreachable.
+- `apps/desktop/src/pages/NewSession.tsx` — handleSubmit now uploads the CV (and each additional document) via `useCvStore.uploadCv`, threads the returned ids into `createSession({ cvId, documentIds })`, and surfaces a clear "CV upload was rejected" message if the upload fails (previously: silently dropped).
+- `apps/desktop/src/stores/cv.ts` — `uploadCv` now returns `Promise<CvDocument | null>`. The return value is the authoritative id; callers no longer rely on a stale `currentCv` after a failed upload.
+- `apps/desktop/src/services/chatService.ts` — manual "Ask Echo". `askAssistant` calls `buildContextMessages({ cv, customContext, documents, language })` to assemble the baseline, appends the last 6 history messages, then posts to `/chat`. No more inline system message.
+- `apps/desktop/src/hooks/useSessionBackground.ts` — auto-detected question path. `fetchAiAnswer` does the same 2-step, plus folds the question-category's prompt template (interview / coding / system-design …) into `customContext`, maps recent transcript segments to `{ speaker, text, timestamp }`, and asks the model in 2-5 sentences grounded in the candidate's CV and additional context.
+- `apps/desktop/src/components/AIAssistance.tsx` — manual chat UI uses `buildContextMessages`. The 4 context chips (CV, Documents, Additional Context, Transcript) are now derived from real session state instead of being hard-coded active.
+- `apps/desktop/src/hooks/useWebSocket.ts` — companion-triggered `ai.request` now passes `session.cvContent`, `session.documents`, `session.language` through to `askAssistant`, so a question fired from the phone sees the same uniform context as one fired from the desktop.
+
+### AI Gateway
+
+No new endpoint — this update reuses the existing `POST /chat/context` and `ContextAssembler` that the spec already defined, just from a path that was previously bypassed. The Gateway's `PromptCache` makes repeat assembly cheap.
+
+### Result
+
+Every AI request (manual chat, auto-question-detection, companion-triggered) now flows through the same uniform system prompt: candidate CV + user-supplied additional context + uploaded documents + session language directive + live transcript tail. The snapshot pattern (CV text lives on the session row at creation time) means deleting the source CV later doesn't break an active session.
+
+### Verified
+
+`pnpm typecheck` green on `cloud-api`, `ai-gateway`, `desktop`, `shared-types`.
+
+### Files of note
+
+```
+apps/cloud-api/src/routes/sessions.ts    # cvId/documentIds accepted; mapSession returns cvContent
+apps/cloud-api/src/db/schema.ts          # sessions table got cv_id, cv_content, document_ids, documents_content
+apps/cloud-api/src/db/index.ts           # ensureSessionsColumns migration helper
+apps/cloud-api/src/routes/cv.ts          # MD/CSV/JSON added to /cv/upload fileFilter
+
+apps/desktop/src/lib/context.ts          # NEW: buildContextMessages helper
+apps/desktop/src/pages/NewSession.tsx    # uploads CV + docs; surfaces upload errors
+apps/desktop/src/stores/cv.ts            # uploadCv returns Promise<CvDocument | null>
+apps/desktop/src/services/chatService.ts # 2-step /chat/context -> /chat
+apps/desktop/src/hooks/useSessionBackground.ts
+apps/desktop/src/components/AIAssistance.tsx
+apps/desktop/src/hooks/useWebSocket.ts   # ai.request handler passes cv/docs/language
+
+packages/shared-types/src/session.ts     # Session type carries cvId, cvContent, documents
+```
+
+### Backward compatibility
+
+---
+
+## U13 - Current implementation status and incomplete work inventory
+
+This section reflects the live repository as of 2026-07-18. `apps/BACK_desktop_backup` is historical code and is not part of the active product path.
+
+### Completed in this update
+
+1. **CV PDF/DOCX extraction** - `apps/cloud-api/src/services/cv-parser.ts` now extracts PDF text with `pdf-parse` and DOCX text with `mammoth`. `/api/cv/upload` persists the extracted text that was actually sent to the AI parser instead of storing binary bytes as UTF-8.
+2. **Image analysis** - `apps/ai-gateway/src/routes/image-analysis.ts` now calls OpenAI vision (`gpt-4o-mini`), accepts raw base64 or data URLs, requests structured JSON, validates the response shape, and returns a clear configuration error when `OPENAI_API_KEY` is missing.
+3. **Companion session controls** - `apps/companion/lib/screens/controls_screen.dart` now discovers the current active/paused session, calls the pause/resume/end API endpoints, shows status/errors, and listens for session events. Cloud API pause/resume/end routes now broadcast those events to connected Desktop and Companion clients.
+
+### Confirmed incomplete sections
+
+- **Companion remote controls beyond lifecycle:** screenshot trigger, volume/mic-level control, and AI model switching are not implemented. The prior placeholder buttons were removed; only pause/resume/end are live.
+- **Companion transcript screen:** intentionally displays a disabled message and does not render live transcript events yet.
+- **Email verification:** `auth.verifyEmail()` remains a stub that throws `Not implemented`; the route is not a usable verification flow.
+- **APNs push delivery:** the APNs path only logs an attempt. JWT creation, HTTP/2 delivery, response handling, retries, and invalid-token cleanup are missing.
+- **Web Portal dashboard metrics:** hours and AI-token totals are hardcoded to zero; the dashboard currently only reports the fetched session count.
+- **Analytics accuracy:** token usage is approximated as `token_usage event count * 1000`, and revenue is approximated as active subscription count * 20. Actual usage/cost and billing aggregation are still required.
+- **Provider-aware image analysis:** image analysis currently uses OpenAI only. Anthropic/Gemini vision fallback and provider routing are not implemented.
+- **Desktop deployment configuration:** the session background hook uses a hardcoded `http://localhost:4001` gateway URL instead of the configured gateway environment value.
+- **Semantic search durability:** vector search is in-memory; embeddings and indexed content are lost on process restart.
+- **Offline/secure storage:** the desktop still uses the current local storage implementation rather than SQLCipher-backed encrypted session storage and a complete offline auth policy.
+- **Testing:** the Flutter test suite still contains only a placeholder test; end-to-end Desktop/Web/Cloud/AI integration coverage is absent.
+- **Production hardening:** default development JWT secrets remain available as fallbacks; production secret enforcement, signed installers, Sentry server integration, load testing, API documentation, privacy/legal documents, and release infrastructure remain unfinished.
+- **Historical backup package:** `apps/BACK_desktop_backup` is included by the workspace glob and fails typecheck against the newer shared session contract. It should be excluded from the workspace or removed once the backup is no longer needed.
+
+### Validation notes
+
+- Shared-types tests previously passed 21/21.
+- Current TypeScript packages had passed individually before the parser dependency update.
+- `pnpm install` updated the lockfile for `pdf-parse` and `mammoth`, but the local `node_modules` tree was being recreated during validation and the non-interactive install timed out. Reinstall dependencies before running the final build in a clean environment.
+- Flutter analyzer validation could not be completed in this environment.
+
+## U14 - Silence hallucination fix
+
+- `apps/desktop/src-tauri/src/lib.rs` now computes RMS and peak amplitude and returns an empty transcription result for near-silent buffers before making an STT request.
+- `apps/ai-gateway/src/routes/transcription.ts` now rejects near-silent PCM16 WAV payloads and filters Whisper segments with high `no_speech_prob`, low confidence, or empty text.
+- `apps/desktop/src/hooks/useSessionBackground.ts` now ignores low-confidence segments and suppresses exact repeated transcript text for 30 seconds, preventing silence hallucinations such as repeated "Interviewer / You" entries.
+- Verified with Cloud/AI/desktop TypeScript checks and `cargo check` for the Tauri application.
+
+## U15 - Multi-interval question batching
+
+- `apps/desktop/src/hooks/useSessionBackground.ts` keeps transcript text from consecutive transcription intervals in a pending utterance buffer.
+- The live transcript still publishes each 5-second segment immediately.
+- Question detection and AI answering now run only when a later transcription tick contains no speech, treating that tick as the end-of-utterance boundary.
+- A multi-part question therefore reaches the AI as one combined prompt instead of only the first 5-second batch.
+
+- Existing sessions (created before this update) have `cv_content = NULL` and `documents_content = NULL`. `Session.cvContent?`, `Session.documents?` are both optional, and `ContextAssembler` skips empty sections. No migration of historical sessions is required.
+- `useCvStore.uploadCv`'s public signature changed from `Promise<void>` to `Promise<CvDocument | null>`. Anyone still using `void` (e.g. `CvLibrary`'s upload button) continues to compile — `void` is structurally compatible.

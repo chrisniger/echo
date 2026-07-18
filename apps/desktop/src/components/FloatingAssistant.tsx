@@ -1,50 +1,11 @@
 import { useState, useRef, useCallback } from 'react';
 import { Bot, Minus, Maximize2, X, MessageSquare, Subtitles } from 'lucide-react';
 import { useSettingsStore } from '../stores/settings';
+import { useSessionStore } from '../stores/session';
 import { cn } from '../lib/utils';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
 import AIAssistance from './AIAssistance';
 import Transcript from './Transcript';
-import type { TranscriptSegment } from '@echo-gpt/shared-types';
-
-const mockSegments: TranscriptSegment[] = [
-  {
-    id: '1',
-    sessionId: 'mock',
-    speakerId: 'speaker-1',
-    speakerLabel: 'Speaker 1',
-    text: 'Let me explain the architecture of the system we are building.',
-    confidence: 0.95,
-    startTime: 0,
-    endTime: 5,
-    isEdited: false,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: '2',
-    sessionId: 'mock',
-    speakerId: 'speaker-2',
-    speakerLabel: 'Interviewer',
-    text: 'That sounds great. How does the authentication flow work?',
-    confidence: 0.82,
-    startTime: 6,
-    endTime: 12,
-    isEdited: false,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: '3',
-    sessionId: 'mock',
-    speakerId: 'speaker-1',
-    speakerLabel: 'Speaker 1',
-    text: 'We use JWT tokens with refresh rotation.',
-    confidence: 0.65,
-    startTime: 13,
-    endTime: 17,
-    isEdited: false,
-    createdAt: new Date().toISOString(),
-  },
-];
 
 interface FloatingAssistantProps {
   onClose: () => void;
@@ -54,6 +15,7 @@ export default function FloatingAssistant({ onClose }: FloatingAssistantProps) {
   const [isMinimized, setIsMinimized] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
   const opacity = useSettingsStore((s) => s.settings.floatingAssistantOpacity);
+  const transcript = useSessionStore((s) => s.transcript);
   const dragRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -141,9 +103,17 @@ export default function FloatingAssistant({ onClose }: FloatingAssistantProps) {
             </TabsContent>
 
             <TabsContent value="transcript" className="flex-1 overflow-y-auto mt-0 p-4 space-y-3">
-              {mockSegments.map((seg) => (
-                <Transcript key={seg.id} segment={seg} />
-              ))}
+              {transcript.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <Subtitles className="h-12 w-12 text-zinc-600 mb-2" />
+                  <p className="text-sm text-zinc-500">No transcript yet</p>
+                  <p className="text-xs text-zinc-600 mt-1">Start a session to see the transcript</p>
+                </div>
+              ) : (
+                transcript.map((seg) => (
+                  <Transcript key={seg.id} segment={seg} />
+                ))
+              )}
             </TabsContent>
           </Tabs>
         </div>

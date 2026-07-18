@@ -13,6 +13,11 @@ import { OllamaProvider } from './providers/ollama.js';
 import { createHealthRouter } from './routes/health.js';
 import { createChatRouter } from './routes/chat.js';
 import { createAdminRouter } from './routes/admin.js';
+import { createTranscriptionRouter } from './routes/transcription.js';
+import { createImageAnalysisRouter } from './routes/image-analysis.js';
+import { createEmbeddingRouter } from './routes/embeddings.js';
+import { createCvParserRouter } from './routes/cv-parser.js';
+import { createClassifierRouter } from './routes/classifier.js';
 
 const app = express();
 const router = new AiRouter();
@@ -47,10 +52,20 @@ for (const p of providers) {
 const healthRouter = createHealthRouter(router);
 const chatRouter = createChatRouter(router, cache);
 const adminRouter = createAdminRouter(router, cache);
+const transcriptionRouter = createTranscriptionRouter();
+const imageAnalysisRouter = createImageAnalysisRouter();
+const embeddingRouter = createEmbeddingRouter();
+const cvParserRouter = createCvParserRouter();
+const classifierRouter = createClassifierRouter();
 
 app.use('/api', healthRouter);
 app.use('/api', chatRouter);
 app.use('/api', adminRouter);
+app.use('/api', transcriptionRouter);
+app.use('/api', imageAnalysisRouter);
+app.use('/api', embeddingRouter);
+app.use('/api', cvParserRouter);
+app.use('/api', classifierRouter);
 
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('Unhandled error:', err);

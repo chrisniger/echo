@@ -9,7 +9,14 @@ interface CvState {
   currentCv: CvDocument | null;
   isLoading: boolean;
   fetchCvs: () => Promise<void>;
-  uploadCv: (file: File, tags?: string[]) => Promise<void>;
+  /**
+   * Upload a CV / document file. Returns the freshly uploaded `CvDocument` on
+   * success, or `null` on failure (the store's internal isLoading is reset to
+   * false in either case). Callers should rely on this return value rather
+   * than reading `currentCv` afterwards, because a failed upload leaves any
+   * prior `currentCv` intact and could otherwise be mistaken for a success.
+   */
+  uploadCv: (file: File, tags?: string[]) => Promise<CvDocument | null>;
   deleteCv: (id: string) => Promise<void>;
   setDefaultCv: (id: string) => Promise<void>;
   updateCv: (id: string, data: Partial<CvDocument>) => Promise<void>;
@@ -36,7 +43,7 @@ export const useCvStore = create<CvState>((set, get) => ({
   fetchCvs: async () => {
     set({ isLoading: true });
     try {
-      const res = await api.get<{ cvs: CvDocument[] }>('/cvs');
+      const res = await api.get<{ cvs: CvDocument[] }>('/cv/list');
       set({ cvList: res.cvs, isLoading: false });
       persistLocalCvs(res.cvs);
     } catch {
@@ -53,18 +60,20 @@ export const useCvStore = create<CvState>((set, get) => ({
       if (tags) {
         formData.append('tags', JSON.stringify(tags));
       }
-      const cv = await api.post<CvDocument>('/cvs/upload', formData);
+      const cv = await api.post<CvDocument>('/cv/upload', formData);
       set((state) => ({ cvList: [cv, ...state.cvList], currentCv: cv, isLoading: false }));
       persistLocalCvs([cv, ...get().cvList]);
+      return cv;
     } catch {
       set({ isLoading: false });
+      return null;
     }
   },
 
   deleteCv: async (id: string) => {
     set({ isLoading: true });
     try {
-      await api.delete(`/cvs/${id}`);
+      await api.delete(`/cv/${id}`);
       set((state) => ({
         cvList: state.cvList.filter((cv) => cv.id !== id),
         currentCv: state.currentCv?.id === id ? null : state.currentCv,
@@ -78,7 +87,7 @@ export const useCvStore = create<CvState>((set, get) => ({
 
   setDefaultCv: async (id: string) => {
     try {
-      const updated = await api.post<CvDocument>(`/cvs/${id}/default`);
+      const updated = await api.post<CvDocument>(`/cv/${id}/default`);
       set((state) => ({
         cvList: state.cvList.map((cv) => ({
           ...cv,
@@ -93,7 +102,7 @@ export const useCvStore = create<CvState>((set, get) => ({
 
   updateCv: async (id: string, data: Partial<CvDocument>) => {
     try {
-      const updated = await api.put<CvDocument>(`/cvs/${id}`, data);
+      const updated = await api.put<CvDocument>(`/cv/${id}`, data);
       set((state) => ({
         cvList: state.cvList.map((cv) => (cv.id === id ? updated : cv)),
         currentCv: state.currentCv?.id === id ? updated : state.currentCv,

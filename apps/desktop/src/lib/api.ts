@@ -1,7 +1,22 @@
-import { getAccessToken, getRefreshToken, storeTokens, clearTokens } from './auth';
+import { getAccessToken, getRefreshToken, storeTokens, clearTokens, isTokenExpired } from './auth';
 
-const CLOUD_BASE_URL = '/api/cloud';
-const GATEWAY_BASE_URL = '/api/gateway';
+const CLOUD_BASE_URL = import.meta.env.VITE_CLOUD_API_URL || '/api/cloud';
+const GATEWAY_BASE_URL = import.meta.env.VITE_GATEWAY_API_URL || '/api/gateway';
+
+// Callbacks for global state changes triggered by auth
+type AuthEventHandler = () => void;
+const authEventHandlers: Set<AuthEventHandler> = new Set();
+
+export function onAuthRefresh(handler: AuthEventHandler): () => void {
+  authEventHandlers.add(handler);
+  return () => authEventHandlers.delete(handler);
+}
+
+function notifyAuthRefreshed() {
+  for (const h of authEventHandlers) {
+    try { h(); } catch { /* ignore */ }
+  }
+}
 
 interface RequestOptions extends Omit<RequestInit, 'body'> {
   body?: unknown;
@@ -40,14 +55,24 @@ class ApiClient {
 
       const data = await res.json();
       storeTokens(data.tokens);
+      notifyAuthRefreshed();
       return true;
     } catch {
       return false;
     }
   }
 
-  private async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  private async request<T>(path: string, options: RequestOptions = {}, isRetry = false): Promise<T> {
     const { body, params, ...init } = options;
+
+    // Proactively refresh if we know the access token is expired (saves a 401 round-trip)
+    if (!isRetry && isTokenExpired() && getRefreshToken()) {
+      const ok = await this.refreshAuth();
+      if (!ok) {
+        // Refresh failed — let the request try once with the stale token; if the
+        // server rejects it, we'll handle 401 below.
+      }
+    }
 
     const accessToken = getAccessToken();
 
@@ -69,25 +94,16 @@ class ApiClient {
       body: body instanceof FormData ? body : body ? JSON.stringify(body) : undefined,
     });
 
-    if (response.status === 401) {
+    if (response.status === 401 && !isRetry) {
       const refreshed = await this.refreshAuth();
       if (refreshed) {
-        const newToken = getAccessToken();
-        headers['Authorization'] = `Bearer ${newToken}`;
-        const retryResponse = await fetch(this.buildUrl(path, params), {
-          ...init,
-          headers,
-          body: body instanceof FormData ? body : body ? JSON.stringify(body) : undefined,
-        });
-        if (!retryResponse.ok) {
-          const errorBody = await retryResponse.json().catch(() => ({}));
-          throw new ApiError(retryResponse.status, errorBody.message || retryResponse.statusText, errorBody);
-        }
-        return retryResponse.json();
+        return this.request<T>(path, options, true);
       }
-      clearTokens();
-      window.location.href = '/login';
-      throw new ApiError(401, 'Unauthorized');
+      // Refresh failed: surface the error so the caller can decide. Do NOT
+      // force a redirect to /login — the background timer in App.tsx handles
+      // logout decisions.
+      const errorBody = await response.json().catch(() => ({}));
+      throw new ApiError(401, errorBody.message || 'Session expired', errorBody);
     }
 
     if (!response.ok) {
@@ -108,6 +124,15 @@ class ApiClient {
 
   async put<T>(path: string, body?: unknown, options?: RequestOptions): Promise<T> {
     return this.request<T>(path, { ...options, method: 'PUT', body });
+  }
+
+  /**
+   * PATCH — used for partial-resource updates like PATCH /api/sessions/:id
+   * where we only send the field(s) being changed. Same auth/refresh contract
+   * as POST/PUT; shares the JSON-body serialization path.
+   */
+  async patch<T>(path: string, body?: unknown, options?: RequestOptions): Promise<T> {
+    return this.request<T>(path, { ...options, method: 'PATCH', body });
   }
 
   async delete<T>(path: string, options?: RequestOptions): Promise<T> {

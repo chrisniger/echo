@@ -1,17 +1,37 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Calendar, Filter, Clock, Activity } from 'lucide-react';
+import { Search, Calendar, Clock, Activity } from 'lucide-react';
 import { useSessionStore } from '../stores/session';
 import { Card, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
-import { Input } from '../components/ui/input';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../components/ui/select';
+import {
+  SESSION_TYPE_VALUES,
+  SessionTypeBadge,
+} from '../components/SessionTypeBadge';
+import { isSessionType, type SessionType } from '@echo-gpt/shared-types';
 
 const statusLabels: Record<string, 'default' | 'success' | 'warning' | 'secondary'> = {
   active: 'success',
   paused: 'warning',
   ended: 'secondary',
 };
+
+// Sentinel value used in the Radix <Select>'s onValueChange callback (which
+// is `string`-only — `null` isn't a valid Radix value). Three places use it;
+// keeping it as one const prevents drift if we ever rename the "all" option.
+const ALL_TYPES = '__all__';
+
+/**
+ * Type-safe narrowing from Radix's string callback to SessionType. Uses
+ * the shared `isSessionType` predicate from @echo-gpt/shared-types so the
+ * typecast vanishes and a new SessionType added to the union is automatically
+ * picked up here (no edit required in this file).
+ */
+function parseTypeFilter(v: string): SessionType | null {
+  if (v === ALL_TYPES) return null;
+  return isSessionType(v) ? v : null;
+}
 
 export default function History() {
   const { sessions, fetchSessions, isLoading } = useSessionStore();
@@ -20,6 +40,10 @@ export default function History() {
   const [search, setSearch] = useState('');
   const [modelFilter, setModelFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  // null = no SessionType filter. Default convention: nullable sentinels
+  // are idiomatic in React; the previous "__all__" string sentinel was
+  // over-engineered.
+  const [typeFilter, setTypeFilter] = useState<SessionType | null>(null);
 
   useEffect(() => {
     fetchSessions();
@@ -29,7 +53,8 @@ export default function History() {
     const matchesSearch = s.name.toLowerCase().includes(search.toLowerCase());
     const matchesModel = modelFilter === 'all' || s.aiModel === modelFilter;
     const matchesStatus = statusFilter === 'all' || s.status === statusFilter;
-    return matchesSearch && matchesModel && matchesStatus;
+    const matchesType = typeFilter === null || s.sessionType === typeFilter;
+    return matchesSearch && matchesModel && matchesStatus && matchesType;
   });
 
   const uniqueModels = [...new Set(sessions.map((s) => s.aiModel))];
@@ -72,6 +97,20 @@ export default function History() {
               <SelectItem value="ended">Ended</SelectItem>
             </SelectContent>
           </Select>
+          <Select
+            value={typeFilter ?? ALL_TYPES}
+            onValueChange={(v) => setTypeFilter(parseTypeFilter(v))}
+          >
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="Type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_TYPES}>All Types</SelectItem>
+              {SESSION_TYPE_VALUES.map((t) => (
+                <SelectItem key={t} value={t}>{t}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
@@ -92,7 +131,13 @@ export default function History() {
               <CardContent className="p-5">
                 <div className="flex items-start justify-between">
                   <div className="min-w-0 flex-1">
-                    <h3 className="font-semibold text-zinc-100 truncate">{session.name}</h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-zinc-100 truncate">{session.name}</h3>
+                      <SessionTypeBadge
+                        type={session.sessionType}
+                        shortLabel={{ Brainstorming: 'Brainstorm', 'Customer Support': 'Support' }}
+                      />
+                    </div>
                     <div className="mt-2 flex flex-wrap gap-3 text-sm text-zinc-500">
                       <span className="flex items-center gap-1">
                         <Calendar className="h-3.5 w-3.5" />
@@ -130,7 +175,7 @@ export default function History() {
             <Activity className="h-16 w-16 text-zinc-700 mb-4" />
             <p className="text-lg text-zinc-400">No sessions found</p>
             <p className="mt-1 text-sm text-zinc-600">
-              {search || modelFilter !== 'all' || statusFilter !== 'all'
+              {search || modelFilter !== 'all' || statusFilter !== 'all' || typeFilter !== null
                 ? 'Try adjusting your search or filters'
                 : 'Start your first session to see it here'}
             </p>

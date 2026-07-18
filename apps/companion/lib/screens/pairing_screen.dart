@@ -16,12 +16,38 @@ class _PairingScreenState extends State<PairingScreen> {
   String? _code;
   bool _loading = false;
   String? _error;
+  bool _waitingForApproval = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Listen to pairing service changes
+    context.read<PairingService>().addListener(_onPairingStateChanged);
+  }
 
   @override
   void dispose() {
+    context.read<PairingService>().removeListener(_onPairingStateChanged);
     _nameCtrl.dispose();
     _codeCtrl.dispose();
     super.dispose();
+  }
+
+  void _onPairingStateChanged() {
+    final pairing = context.read<PairingService>();
+
+    if (pairing.isApproved) {
+      context.read<AuthService>().setPaired(true, deviceId: pairing.deviceId);
+    }
+
+    if (mounted) {
+      setState(() {
+        _code = pairing.pairingCode;
+        _waitingForApproval = pairing.pairingCode != null && !pairing.isApproved;
+        _loading = pairing.isLoading;
+        _error = pairing.error;
+      });
+    }
   }
 
   Future<void> _requestCode() async {
@@ -29,7 +55,10 @@ class _PairingScreenState extends State<PairingScreen> {
     try {
       final pairing = context.read<PairingService>();
       await pairing.requestPairingCode(_nameCtrl.text.trim());
-      setState(() { _code = pairing.pairingCode; });
+      setState(() { 
+        _code = pairing.pairingCode;
+        _waitingForApproval = true;
+      });
     } catch (e) {
       setState(() { _error = e.toString().replaceAll('Exception: ', ''); });
     } finally {
@@ -43,7 +72,7 @@ class _PairingScreenState extends State<PairingScreen> {
     setState(() { _loading = true; _error = null; });
     try {
       await context.read<PairingService>().verifyCode(code);
-      context.read<AuthService>().setPaired(true);
+      // Approval is async — AuthGate will navigate when pairing.isApproved becomes true.
     } catch (e) {
       setState(() { _error = e.toString().replaceAll('Exception: ', ''); });
     } finally {
@@ -77,11 +106,23 @@ class _PairingScreenState extends State<PairingScreen> {
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(color: const Color(0xFF1A1A1A), borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFF2A2A2A))),
                 child: Column(children: [
-                  const Text('Enter this code on your desktop:', style: TextStyle(fontSize: 14, color: Colors.grey)),
-                  const SizedBox(height: 12),
-                  Text(_code!, style: const TextStyle(fontSize: 36, fontWeight: FontWeight.bold, letterSpacing: 8, fontFamily: 'JetBrainsMono', color: Color(0xFF5C7CFA))),
-                  const SizedBox(height: 12),
-                  Text('OR', style: TextStyle(color: Colors.grey[500])),
+                  if (_waitingForApproval) ...[
+                    const Icon(Icons.hourglass_empty, size: 48, color: Color(0xFF5C7CFA)),
+                    const SizedBox(height: 16),
+                    const Text('Waiting for approval...', style: TextStyle(fontSize: 16, color: Colors.grey)),
+                    const SizedBox(height: 8),
+                    const CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF5C7CFA)),
+                    const SizedBox(height: 16),
+                    const Text('Enter this code on your desktop:', style: TextStyle(fontSize: 14, color: Colors.grey)),
+                    const SizedBox(height: 12),
+                    Text(_code!, style: const TextStyle(fontSize: 36, fontWeight: FontWeight.bold, letterSpacing: 8, fontFamily: 'JetBrainsMono', color: Color(0xFF5C7CFA))),
+                  ] else ...[
+                    const Text('Enter this code on your desktop:', style: TextStyle(fontSize: 14, color: Colors.grey)),
+                    const SizedBox(height: 12),
+                    Text(_code!, style: const TextStyle(fontSize: 36, fontWeight: FontWeight.bold, letterSpacing: 8, fontFamily: 'JetBrainsMono', color: Color(0xFF5C7CFA))),
+                    const SizedBox(height: 12),
+                    Text('OR', style: TextStyle(color: Colors.grey[500])),
+                  ],
                   const SizedBox(height: 12),
                   SizedBox(width: double.infinity, child: ElevatedButton(
                     onPressed: _requestCode, child: const Text('Request New Code'),

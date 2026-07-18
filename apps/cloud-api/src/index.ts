@@ -14,8 +14,11 @@ import pairingRoutes from './routes/pairing.js';
 import { createPushRouter } from './routes/push.js';
 import { createSyncRouter } from './routes/sync.js';
 import { createBillingRouter } from './routes/billing.js';
+import sessionRoutes from './routes/sessions.js';
+import { createCvRouter } from './routes/cv.js';
 import { getDb } from './db/index.js';
 import { WsGateway } from './websocket/gateway.js';
+import { setWsGateway } from './websocket/gateway-singleton.js';
 
 // Sentry is configured via SENTRY_DSN env var — it's loaded and initialized in a separate step
 // When deploying, set SENTRY_DSN and use @sentry/node's tracing integrations
@@ -36,6 +39,8 @@ app.use('/api', createAdminRouter());
 app.use('/api', pairingRoutes);
 app.use('/api', createPushRouter());
 app.use('/api', createSyncRouter());
+app.use('/api', sessionRoutes);
+app.use('/api', createCvRouter());
 app.use('/api', createBillingRouter());
 
 app.get('/api/health', (_req, res) => {
@@ -77,9 +82,13 @@ getDb();
 const server = http.createServer(app);
 const wsGateway = new WsGateway(server);
 
-server.listen(config.PORT, () => {
-  console.log(`[Echo Cloud API] Server running on http://localhost:${config.PORT}`);
-  console.log(`[Echo Cloud API] WebSocket available at ws://localhost:${config.PORT}/ws`);
+// Register the gateway singleton so route handlers (e.g. PATCH /sessions/:id)
+// can broadcast WS events without app.locals or a router factory.
+setWsGateway(wsGateway);
+
+server.listen(config.PORT, '0.0.0.0', () => {
+  console.log(`[Echo Cloud API] Server running on http://0.0.0.0:${config.PORT}`);
+  console.log(`[Echo Cloud API] WebSocket available at ws://0.0.0.0:${config.PORT}/ws`);
 });
 
 export default app;

@@ -29,3 +29,9 @@ export function isTokenExpired(): boolean {
   if (!expiresAt) return true;
   return Date.now() > Number(expiresAt);
 }
+
+export function getExpiresAt(): number {
+  const expiresAt = localStorage.getItem(EXPIRES_AT_KEY);
+  if (!expiresAt) return 0;
+  return Number(expiresAt);
+}

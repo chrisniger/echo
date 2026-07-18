@@ -8,9 +8,26 @@ import {
 
 dotenv.config();
 
+const TAURI_ORIGINS = [
+  'http://tauri.localhost',
+  'https://tauri.localhost',
+  'tauri://localhost',
+  'http://localhost:1420',
+];
+
+function parseCorsOrigins(raw: string): string[] {
+  const list = raw.split(',').map((s) => s.trim()).filter(Boolean);
+  for (const origin of TAURI_ORIGINS) {
+    if (!list.includes(origin)) list.push(origin);
+  }
+  return list;
+}
+
+const rawCorsOrigin = process.env.CORS_ORIGIN || DESKTOP.DEV_URL;
+
 export const config = {
   port: parseInt(process.env.PORT || String(AI_GATEWAY.DEFAULT_PORT), 10),
-  corsOrigin: process.env.CORS_ORIGIN || DESKTOP.DEV_URL,
+  corsOrigin: parseCorsOrigins(rawCorsOrigin),
   openai: {
     apiKey: process.env.OPENAI_API_KEY || '',
     baseUrl: process.env.OPENAI_BASE_URL || PROVIDER_DEFAULTS.openai.baseUrl,
@@ -30,6 +47,11 @@ export const config = {
   openrouter: {
     apiKey: process.env.OPENROUTER_API_KEY || '',
     baseUrl: process.env.OPENROUTER_BASE_URL || PROVIDER_DEFAULTS.openrouter.baseUrl,
+  },
+  groq: {
+    apiKey: process.env.GROQ_API_KEY || '',
+    baseUrl: process.env.GROQ_BASE_URL || 'https://api.groq.com/openai/v1',
+    whisperModel: process.env.GROQ_WHISPER_MODEL || 'whisper-large-v3',
   },
   ollama: {
     baseUrl: process.env.OLLAMA_BASE_URL || PROVIDER_DEFAULTS.ollama.baseUrl,

@@ -8,6 +8,7 @@ const defaultSettings: UserSettings = {
   language: 'en',
   defaultAiModel: 'gpt-4o',
   defaultResponseStyle: 'concise',
+  defaultAudioSource: 'system',
   floatingAssistantOpacity: 0.9,
   globalShortcuts: {
     'toggle-assistant': 'Ctrl+Shift+E',
@@ -19,6 +20,17 @@ const defaultSettings: UserSettings = {
   enableSpeakerDiarization: true,
   enableAutoSummaries: true,
   enableCloudSync: true,
+  questionDetection: {
+    enabled: true,
+    threshold: 0.7,
+    responseDelayMs: 0,
+    contextWindowSize: 30,
+    enableFastRules: true,
+    enablePatterns: true,
+    enableContextMemory: true,
+    enableClassifier: false, // off by default to avoid surprise API spend
+    questionPatterns: [],
+  },
 };
 
 function loadSettings(): UserSettings {

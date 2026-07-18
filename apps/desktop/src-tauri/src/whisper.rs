@@ -2,18 +2,24 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct TranscriptionSegment {
-    pub start_timestamp: f64,
-    pub end_timestamp: f64,
     pub text: String,
+    pub start: f64,
+    pub end: f64,
+    #[serde(default)]
     pub confidence: f32,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct TranscriptionResult {
-    pub segments: Vec<TranscriptionSegment>,
-    pub full_text: String,
+    pub text: String,
     pub language: String,
-    pub duration_secs: f64,
+    pub duration: f64,
+    #[serde(default)]
+    pub segments: Vec<TranscriptionSegment>,
+    #[serde(default)]
+    pub provider: Option<String>,
+    #[serde(default)]
+    pub error: Option<String>,
 }
 
 #[derive(Clone, Serialize)]

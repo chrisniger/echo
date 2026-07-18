@@ -5,7 +5,7 @@ import { config } from '../config.js';
 
 export class DeepSeekProvider extends BaseProvider {
   readonly name = 'deepseek' as const;
-  readonly models: AiModel[] = ['deepseek-chat', 'deepseek-coder'];
+  readonly models: AiModel[] = ['deepseek-chat', 'deepseek-coder', 'deepseek-reasoner'];
 
   protected getAuthHeaders(): Record<string, string> {
     return { Authorization: `Bearer ${config.deepseek.apiKey}` };

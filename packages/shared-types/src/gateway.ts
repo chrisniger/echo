@@ -8,19 +8,27 @@ export type AiProvider =
 
 export type AiModel =
   | 'gpt-4o'
+  | 'gpt-4o-mini'
   | 'gpt-4-turbo'
   | 'gpt-3.5-turbo'
+  | 'claude-4-opus'
+  | 'claude-4-sonnet'
+  | 'claude-3.5-sonnet'
   | 'claude-3-opus'
   | 'claude-3-sonnet'
   | 'claude-3-haiku'
-  | 'claude-4'
   | 'gemini-2.0-flash'
   | 'gemini-2.0-pro'
+  | 'gemini-1.5-pro'
+  | 'gemini-1.5-flash'
   | 'deepseek-chat'
   | 'deepseek-coder'
+  | 'deepseek-reasoner'
   | 'openrouter/auto'
   | 'ollama/llama3'
-  | 'ollama/mixtral';
+  | 'ollama/mixtral'
+  | 'ollama/qwen2.5'
+  | 'ollama/codellama';
 
 export type MessageRole = 'system' | 'user' | 'assistant';
 
@@ -79,6 +87,13 @@ export interface ContextPayload {
   conversationHistory?: ChatMessage[];
   customContext?: string;
   language?: string;
+  /**
+   * User-declared session type (e.g. 'Interview', 'Meeting'). The context
+   * assembler prepends a role directive for this type so the AI knows the
+   * shape of the conversation from the first message. Defaults to nothing
+   * if absent, which preserves the baseline persona.
+   */
+  sessionType?: string;
 }
 
 export interface ProviderConfig {

@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 import 'services/auth_service.dart';
 import 'services/pairing_service.dart';
 import 'services/api_service.dart';
+import 'services/display_settings.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/pairing_screen.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await WakelockPlus.enable();
   runApp(const EchoCompanionApp());
 }
 
@@ -19,9 +22,22 @@ class EchoCompanionApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AuthService()),
-        ChangeNotifierProvider(create: (_) => PairingService()),
-        ChangeNotifierProvider(create: (_) => ApiService()),
+        ChangeNotifierProvider(create: (_) => ApiService()..init()),
+        ChangeNotifierProvider(create: (_) => DisplaySettings()..load()),
+        ChangeNotifierProxyProvider<ApiService, AuthService>(
+          create: (context) => AuthService(context.read<ApiService>())..init(),
+          update: (_, api, auth) {
+            auth?.updateApi(api);
+            return auth ?? AuthService(api);
+          },
+        ),
+        ChangeNotifierProxyProvider<ApiService, PairingService>(
+          create: (context) => PairingService(context.read<ApiService>()),
+          update: (_, api, pairing) {
+            pairing?.updateApi(api);
+            return pairing ?? PairingService(api);
+          },
+        ),
       ],
       child: MaterialApp(
         title: 'Echo Companion',

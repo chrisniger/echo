@@ -12,8 +12,14 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api/gateway': 'http://localhost:4001',
-      '/api/cloud': 'http://localhost:4000',
+      '/api/gateway': {
+        target: 'http://localhost:4001',
+        rewrite: (path) => path.replace(/^\/api\/gateway/, '/api'),
+      },
+      '/api/cloud': {
+        target: 'http://localhost:4000',
+        rewrite: (path) => path.replace(/^\/api\/cloud/, '/api'),
+      },
     },
   },
 });

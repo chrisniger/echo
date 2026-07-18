@@ -19,13 +19,25 @@ export interface PairingCode {
   deviceName: string;
 }
 
+export interface PendingPairing {
+  id: string;
+  code: string;
+  token: string;
+  deviceName: string;
+  platform: string;
+  expiresAt: string;
+  createdAt: string;
+}
+
 interface PairingState {
   devices: PairedDevice[];
   activeCode: PairingCode | null;
+  pendingPairings: PendingPairing[];
   isLoading: boolean;
   error: string | null;
 
   fetchDevices: () => Promise<void>;
+  fetchPendingPairings: () => Promise<void>;
   requestPairingCode: (deviceName: string, platform?: string) => Promise<PairingCode>;
   approvePairing: (token: string) => Promise<void>;
   rejectPairing: (token: string) => Promise<void>;
@@ -41,6 +53,7 @@ interface PairingState {
 export const usePairingStore = create<PairingState>((set, get) => ({
   devices: [],
   activeCode: null,
+  pendingPairings: [],
   isLoading: false,
   error: null,
 
@@ -51,6 +64,15 @@ export const usePairingStore = create<PairingState>((set, get) => ({
       set({ devices, isLoading: false, error: null });
     } catch (err: any) {
       set({ isLoading: false, error: err.message || 'Failed to fetch devices' });
+    }
+  },
+
+  fetchPendingPairings: async () => {
+    try {
+      const pending = await api.get<PendingPairing[]>('/pairing/pending');
+      set({ pendingPairings: pending });
+    } catch (err: any) {
+      console.error('Failed to fetch pending pairings:', err);
     }
   },
 
@@ -74,6 +96,7 @@ export const usePairingStore = create<PairingState>((set, get) => ({
     try {
       await api.post('/pairing/approve', { token });
       await get().fetchDevices();
+      await get().fetchPendingPairings();
       set({ isLoading: false });
     } catch (err: any) {
       set({ isLoading: false, error: err.message || 'Failed to approve device' });

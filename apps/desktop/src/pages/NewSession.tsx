@@ -1,21 +1,42 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Upload, FileText, X, Loader2 } from 'lucide-react';
-import type { AudioSource, ResponseStyle, Language } from '@echo-gpt/shared-types';
+import { Upload, FileText, X, Loader2, AlertTriangle, Briefcase } from 'lucide-react';
+import type { AudioSource, ResponseStyle, Language, SessionType } from '@echo-gpt/shared-types';
+import { SESSION_TYPES } from '@echo-gpt/shared-types';
 import { useSettingsStore } from '../stores/settings';
+import { useSessionStore } from '../stores/session';
+import { useCvStore } from '../stores/cv';
+import { TRANSCRIPTION_INTERVAL_OPTIONS } from '../lib/transcriptionIntervals';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Switch } from '../components/ui/switch';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../components/ui/select';
+import { Card, CardContent } from '../components/ui/card';
 
 const aiModels = [
   { value: 'gpt-4o', label: 'GPT-4o' },
+  { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
   { value: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
-  { value: 'claude-3-sonnet', label: 'Claude 3 Sonnet' },
+  { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
+  { value: 'claude-4-sonnet', label: 'Claude 4 Sonnet' },
+  { value: 'claude-4-opus', label: 'Claude 4 Opus' },
+  { value: 'claude-3.5-sonnet', label: 'Claude 3.5 Sonnet' },
   { value: 'claude-3-opus', label: 'Claude 3 Opus' },
+  { value: 'claude-3-sonnet', label: 'Claude 3 Sonnet' },
+  { value: 'claude-3-haiku', label: 'Claude 3 Haiku' },
   { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
+  { value: 'gemini-2.0-pro', label: 'Gemini 2.0 Pro' },
+  { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
+  { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
   { value: 'deepseek-chat', label: 'DeepSeek Chat' },
+  { value: 'deepseek-coder', label: 'DeepSeek Coder' },
+  { value: 'deepseek-reasoner', label: 'DeepSeek Reasoner' },
+  { value: 'openrouter/auto', label: 'OpenRouter Auto' },
+  { value: 'ollama/llama3', label: 'Ollama Llama 3' },
+  { value: 'ollama/mixtral', label: 'Ollama Mixtral' },
+  { value: 'ollama/qwen2.5', label: 'Ollama Qwen 2.5' },
+  { value: 'ollama/codellama', label: 'Ollama Code Llama' },
 ];
 
 const responseStyles: { value: ResponseStyle; label: string }[] = [
@@ -25,8 +46,8 @@ const responseStyles: { value: ResponseStyle; label: string }[] = [
 ];
 
 const audioSources: { value: AudioSource; label: string }[] = [
-  { value: 'microphone', label: 'Microphone' },
   { value: 'system', label: 'System Audio' },
+  { value: 'microphone', label: 'Microphone' },
   { value: 'mixed', label: 'Mixed' },
 ];
 
@@ -43,25 +64,68 @@ const languages: { value: Language; label: string }[] = [
   { value: 'ru', label: 'Russian' },
 ];
 
+const sessionTypeDescriptions: Record<SessionType, string> = {
+  Interview: 'Job interview coaching. STAR answers, code, system design on demand.',
+  Meeting: 'In-meeting executive assistant. Decisions, summaries, action items.',
+  Assessment: 'Live coding/technical assessment proctor. Correct, well-commented code.',
+  Presentation: 'Presenter coaching. Structure, pacing, narrative arc.',
+  Brainstorming: 'Creative partner. Distinct, non-obvious ideas with rationales.',
+  'Sales Call': 'Real-time sales co-pilot. Discovery, objection handling, next steps.',
+  'Customer Support': 'Support agent assistant. Troubleshooting, empathy, escalation.',
+  Training: 'Tutor mode. Concepts from simple to complex with concrete examples.',
+  General: 'Uncategorised live conversation. Adaptive to context.',
+};
+
 export default function NewSession() {
   const navigate = useNavigate();
   const defaultSettings = useSettingsStore((s) => s.settings);
+  const currentSession = useSessionStore((s) => s.currentSession);
+  const fetchSessions = useSessionStore((s) => s.fetchSessions);
+  const endSession = useSessionStore((s) => s.endSession);
 
   const [name, setName] = useState('');
+  const [sessionType, setSessionType] = useState<SessionType>('General');
   const [context, setContext] = useState('');
   const [aiModel, setAiModel] = useState(defaultSettings.defaultAiModel);
   const [responseStyle, setResponseStyle] = useState<ResponseStyle>(defaultSettings.defaultResponseStyle);
   const [recordSession, setRecordSession] = useState(true);
   const [enableTranscript, setEnableTranscript] = useState(true);
-  const [audioSource, setAudioSource] = useState<AudioSource>('microphone');
+  const [transcriptionIntervalMs, setTranscriptionIntervalMs] = useState(5000);
+  const [audioSource, setAudioSource] = useState<AudioSource>(
+    (defaultSettings.defaultAudioSource ?? 'system') as AudioSource,
+  );
   const [language, setLanguage] = useState<Language>(defaultSettings.language as Language);
   const [cvFile, setCvFile] = useState<File | null>(null);
   const [additionalDocs, setAdditionalDocs] = useState<File[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [activeSessionGuard, setActiveSessionGuard] = useState<{
+    name: string;
+    id: string;
+  } | null>(null);
   const cvInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
+
+  // Refresh sessions list on mount so we can detect an active session the
+  // user may have started on another desktop window.
+  useEffect(() => {
+    void fetchSessions();
+  }, [fetchSessions]);
+
+  const handleActiveSessionFound = async () => {
+    if (!activeSessionGuard) return;
+    try {
+      await endSession();
+      setActiveSessionGuard(null);
+    } catch (err) {
+      console.error('[NewSession] Failed to end previous session:', err);
+    }
+  };
+
+  const handleDismissGuard = () => {
+    navigate('/history');
+  };
 
   const handleCvDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -95,17 +159,117 @@ export default function NewSession() {
       return;
     }
 
+    // Guard: if there's already an active session, force the user to end
+    // it before creating a new one. (Only one session can be capturing
+    // audio at a time — running two would fight over the same mic.)
+    const active = useSessionStore.getState().currentSession;
+    if (active && active.status === 'active') {
+      setActiveSessionGuard({ name: active.name, id: active.id });
+      return;
+    }
+
     setIsLoading(true);
 
-    setTimeout(() => {
+    try {
+      // Upload CV (if any) → get cvId. The cloud-api parses the file and
+      // stores raw_text in cv_library; we keep the id so the session row can
+      // capture a snapshot of the CV content at creation time.
+      //
+      // We use the return value of uploadCv rather than reading `currentCv`
+      // afterwards: a failed upload leaves a stale CV in the store, which
+      // could otherwise disguise itself as a successful CV link for this
+      // session.
+      let cvId: string | undefined;
+      let cvUploadError: string | null = null;
+      if (cvFile) {
+        const uploaded = await useCvStore.getState().uploadCv(cvFile);
+        if (uploaded) {
+          cvId = uploaded.id;
+        } else {
+          cvUploadError = 'CV upload was rejected by the server. Check the file type (PDF / DOCX / TXT / Markdown) and size (≤10 MB).';
+        }
+      }
+
+      // Upload each additional document. We reuse /cv/upload because the
+      // cloud-api already parses PDFs/DOCX/TXT into cv_library rows; we tag
+      // each row's id as a documentId so the session captures them too.
+      const documentIds: string[] = [];
+      for (const doc of additionalDocs) {
+        const uploaded = await useCvStore.getState().uploadCv(doc);
+        if (uploaded?.id) documentIds.push(uploaded.id);
+      }
+
+      if (cvUploadError) {
+        setError(cvUploadError);
+        setIsLoading(false);
+        return;
+      }
+
+      const session = await useSessionStore.getState().createSession({
+        name: name.trim(),
+        sessionType,
+        aiModel,
+        responseStyle,
+        audioSource,
+        language,
+        recordSession,
+        enableTranscript,
+        transcriptionIntervalMs,
+        context: context.trim() || undefined,
+        cvId,
+        documentIds: documentIds.length > 0 ? documentIds : undefined,
+      });
+
+      navigate(`/sessions/${session.id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create session');
+    } finally {
       setIsLoading(false);
-      navigate('/dashboard');
-    }, 1500);
+    }
   };
 
   return (
     <div className="mx-auto max-w-3xl">
       <h1 className="mb-8 text-3xl font-bold text-zinc-100">New Session</h1>
+
+      {activeSessionGuard && (
+        <Card className="mb-6 border-amber-500/40 bg-amber-500/10">
+          <CardContent className="pt-6 space-y-3">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-amber-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-medium text-zinc-100">Another session is currently active</p>
+                <p className="text-sm text-zinc-400 mt-1">
+                  "<span className="text-zinc-200">{activeSessionGuard.name}</span>" is still capturing audio. Only one session can run at a time, so please end it before starting a new one.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="destructive"
+                onClick={handleActiveSessionFound}
+                disabled={isLoading}
+              >
+                {isLoading ? 'Ending…' : 'End current session'}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleDismissGuard}
+                disabled={isLoading}
+              >
+                Go to existing session
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => setActiveSessionGuard(null)}
+                disabled={isLoading}
+              >
+                Cancel
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-8">
         {error && (
@@ -122,6 +286,48 @@ export default function NewSession() {
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g., Technical Interview Prep"
           />
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Briefcase className="h-4 w-4 text-indigo-400" />
+                <Label>Session Type <span className="text-red-400">*</span></Label>
+              </div>
+              <p className="text-xs text-zinc-500">Tells the AI what to expect</p>
+            </div>
+            <p className="text-xs text-zinc-500 -mt-1">
+              {sessionTypeDescriptions[sessionType]}
+            </p>
+            <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+              {SESSION_TYPES.map((t) => {
+                const selected = sessionType === t;
+                return (
+                  <label
+                    key={t}
+                    className={`flex cursor-pointer items-start gap-2 rounded-md border p-3 transition-colors ${
+                      selected
+                        ? 'border-indigo-500 bg-indigo-500/10 ring-1 ring-indigo-500/40'
+                        : 'border-zinc-700 hover:border-zinc-600 bg-zinc-900/40'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="sessionType"
+                      value={t}
+                      checked={selected}
+                      onChange={() => setSessionType(t)}
+                      className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-indigo-500"
+                      aria-label={t}
+                    />
+                    <div className="min-w-0">
+                      <div className={`text-sm font-medium ${selected ? 'text-indigo-100' : 'text-zinc-100'}`}>
+                        {t}
+                      </div>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
           <div className="space-y-1.5">
             <Label>Additional Context</Label>
             <textarea
@@ -265,6 +471,32 @@ export default function NewSession() {
               <p className="text-xs text-zinc-500">Generate real-time transcripts</p>
             </div>
             <Switch checked={enableTranscript} onCheckedChange={setEnableTranscript} />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Transcription Interval</Label>
+            <Select
+              value={String(transcriptionIntervalMs)}
+              onValueChange={(v) => setTranscriptionIntervalMs(Number(v))}
+              disabled={!recordSession || !enableTranscript}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TRANSCRIPTION_INTERVAL_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={String(option.value)}>
+                    <div className="flex flex-col">
+                      <span>{option.label}</span>
+                      <span className="text-xs text-zinc-500">{option.description}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-zinc-500">
+              How often Echo checks the captured audio for transcript updates.
+            </p>
           </div>
 
           <div className="space-y-1.5">

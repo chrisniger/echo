@@ -119,6 +119,31 @@ router.post('/pairing/reject', requireAuth, (req: Request, res: Response) => {
   res.json({ message: 'Pairing request rejected' });
 });
 
+router.get('/pairing/pending', requireAuth, (req: Request, res: Response) => {
+  const db = getDb();
+  const pending = db
+    .prepare(
+      `
+    SELECT * FROM pairing_codes 
+    WHERE user_id = ? AND status = 'pending' AND expires_at > datetime('now')
+    ORDER BY created_at DESC
+  `,
+    )
+    .all(req.user!.id) as any[];
+
+  res.json(
+    pending.map((p) => ({
+      id: p.id,
+      code: p.code,
+      token: p.token,
+      deviceName: p.device_name,
+      platform: p.platform,
+      expiresAt: p.expires_at,
+      createdAt: p.created_at,
+    })),
+  );
+});
+
 router.post('/pairing/verify', (req: Request, res: Response) => {
   const parsed = verifySchema.parse(req.body);
   const db = getDb();
@@ -155,6 +180,42 @@ router.post('/pairing/verify', (req: Request, res: Response) => {
     status: 'pending_approval',
     message: 'Waiting for desktop approval',
     approved: false,
+  });
+});
+
+const statusSchema = z.object({
+  token: z.string().min(1),
+});
+
+/**
+ * Companion → Cloud: check the status of a specific pairing request by token.
+ * Used by the companion to poll for approval without needing to know the
+ * deviceId in advance. Returns the pairing status (pending/approved/rejected/expired)
+ * and, once approved, the deviceId assigned to the companion.
+ */
+router.post('/pairing/status', (req: Request, res: Response) => {
+  const parsed = statusSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Validation error', details: parsed.error.errors });
+    return;
+  }
+  const db = getDb();
+  const pairing = db
+    .prepare('SELECT * FROM pairing_codes WHERE token = ?')
+    .get(parsed.data.token) as any;
+
+  if (!pairing) {
+    res.status(404).json({ status: 'not_found' });
+    return;
+  }
+
+  const expired = new Date(pairing.expires_at) < new Date();
+
+  res.json({
+    status: expired && pairing.status === 'pending' ? 'expired' : pairing.status,
+    deviceId: pairing.device_id || null,
+    deviceName: pairing.device_name,
+    expiresAt: pairing.expires_at,
   });
 });
 

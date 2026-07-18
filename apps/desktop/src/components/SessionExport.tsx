@@ -5,6 +5,7 @@ import { Button } from './ui/button';
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
 import { Switch } from './ui/switch';
 import { Label } from './ui/label';
+import type { Session, TranscriptSegment, AiResponse } from '@echo-gpt/shared-types';
 
 type ExportFormat = 'json' | 'pdf' | 'txt' | 'srt';
 
@@ -30,66 +31,211 @@ const includeOptions: IncludeOption[] = [
 ];
 
 interface SessionExportProps {
-  sessionName?: string;
-  sessionData?: Record<string, unknown>;
+  session: Session;
+  transcript?: TranscriptSegment[];
+  aiResponses?: AiResponse[];
 }
 
-export default function SessionExport({ sessionName = 'session-export' }: SessionExportProps) {
+export default function SessionExport({ session, transcript = [], aiResponses = [] }: SessionExportProps) {
   const [format, setFormat] = useState<ExportFormat>('json');
   const [includes, setIncludes] = useState<Record<string, boolean>>(
     Object.fromEntries(includeOptions.map((opt) => [opt.key, opt.defaultEnabled])),
   );
   const [open, setOpen] = useState(false);
 
-  const handleExport = () => {
-    const data = {
-      exportedAt: new Date().toISOString(),
-      format,
-      includes: Object.entries(includes)
-        .filter(([, v]) => v)
-        .map(([k]) => k),
-      content: {
-        session: sessionName,
-        transcript: includes.transcript ? 'Session transcript content...' : undefined,
-        responses: includes.responses ? 'AI responses...' : undefined,
-        summary: includes.summary ? 'Session summary...' : undefined,
+  const formatTimestamp = (seconds: number): string => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    const ms = Math.floor((seconds % 1) * 1000);
+    
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')},${ms.toString().padStart(3, '0')}`;
+  };
+
+  const generateSrtContent = (): string => {
+    if (!transcript || transcript.length === 0) {
+      return 'No transcript available';
+    }
+
+    return transcript
+      .map((segment, index) => {
+        const startTime = formatTimestamp(segment.startTime);
+        const endTime = formatTimestamp(segment.endTime);
+        return `${index + 1}\n${startTime} --> ${endTime}\n${segment.speakerLabel}: ${segment.text}\n`;
+      })
+      .join('\n');
+  };
+
+  const generateTxtContent = (): string => {
+    const sections: string[] = [];
+
+    sections.push(`=== SESSION: ${session.name} ===\n`);
+    sections.push(`Date: ${new Date(session.startedAt).toLocaleString()}\n`);
+    sections.push(`Duration: ${session.duration} minutes\n`);
+    sections.push(`Model: ${session.aiModel}\n`);
+
+    if (includes.summary && session.summary) {
+      sections.push('\n=== SUMMARY ===\n');
+      sections.push(session.summary);
+    }
+
+    if (includes.transcript && transcript.length > 0) {
+      sections.push('\n=== TRANSCRIPT ===\n');
+      transcript.forEach((segment) => {
+        sections.push(`[${segment.speakerLabel}] ${segment.text}\n`);
+      });
+    }
+
+    if (includes.responses && aiResponses.length > 0) {
+      sections.push('\n=== AI RESPONSES ===\n');
+      aiResponses.forEach((response) => {
+        sections.push(`Query: ${response.query}\n`);
+        sections.push(`Response: ${response.response}\n`);
+        sections.push(`Model: ${response.model}\n`);
+        sections.push('---\n');
+      });
+    }
+
+    return sections.join('\n');
+  };
+
+  const generateJsonContent = (): string => {
+    const data: any = {
+      session: {
+        id: session.id,
+        name: session.name,
+        startedAt: session.startedAt,
+        endedAt: session.endedAt,
+        duration: session.duration,
+        aiModel: session.aiModel,
+        responseStyle: session.responseStyle,
+        language: session.language,
       },
+      exportedAt: new Date().toISOString(),
     };
 
-    let mimeType = 'application/json';
-    let extension = '.json';
-    let content = '';
+    if (includes.summary && session.summary) {
+      data.summary = session.summary;
+    }
+
+    if (includes.transcript && transcript.length > 0) {
+      data.transcript = transcript.map((seg) => ({
+        speaker: seg.speakerLabel,
+        text: seg.text,
+        startTime: seg.startTime,
+        endTime: seg.endTime,
+        confidence: seg.confidence,
+      }));
+    }
+
+    if (includes.responses && aiResponses.length > 0) {
+      data.aiResponses = aiResponses.map((resp) => ({
+        query: resp.query,
+        response: resp.response,
+        model: resp.model,
+        provider: resp.provider,
+        tokensUsed: resp.tokensUsed,
+        createdAt: resp.createdAt,
+      }));
+    }
+
+    return JSON.stringify(data, null, 2);
+  };
+
+  const generatePdfContent = async (): Promise<Blob> => {
+    // For PDF, we'll create an HTML document and convert it
+    // In production, use a library like jsPDF or html2pdf
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>${session.name}</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 40px; }
+          h1 { color: #333; }
+          .section { margin-bottom: 30px; }
+          .transcript { background: #f5f5f5; padding: 15px; border-radius: 5px; }
+          .speaker { font-weight: bold; color: #667eea; }
+        </style>
+      </head>
+      <body>
+        <h1>${session.name}</h1>
+        <p><strong>Date:</strong> ${new Date(session.startedAt).toLocaleString()}</p>
+        <p><strong>Duration:</strong> ${session.duration} minutes</p>
+        <p><strong>Model:</strong> ${session.aiModel}</p>
+        
+        ${includes.summary && session.summary ? `
+          <div class="section">
+            <h2>Summary</h2>
+            <p>${session.summary}</p>
+          </div>
+        ` : ''}
+        
+        ${includes.transcript && transcript.length > 0 ? `
+          <div class="section">
+            <h2>Transcript</h2>
+            <div class="transcript">
+              ${transcript.map(seg => `<p><span class="speaker">${seg.speakerLabel}:</span> ${seg.text}</p>`).join('')}
+            </div>
+          </div>
+        ` : ''}
+        
+        ${includes.responses && aiResponses.length > 0 ? `
+          <div class="section">
+            <h2>AI Responses</h2>
+            ${aiResponses.map(resp => `
+              <div style="margin-bottom: 20px;">
+                <p><strong>Query:</strong> ${resp.query}</p>
+                <p><strong>Response:</strong> ${resp.response}</p>
+                <p><small>Model: ${resp.model} | Tokens: ${resp.tokensUsed}</small></p>
+              </div>
+            `).join('')}
+          </div>
+        ` : ''}
+      </body>
+      </html>
+    `;
+
+    return new Blob([htmlContent], { type: 'text/html' });
+  };
+
+  const handleExport = async () => {
+    let blob: Blob;
+    let extension: string;
+    let mimeType: string;
 
     switch (format) {
       case 'json':
-        content = JSON.stringify(data, null, 2);
+        blob = new Blob([generateJsonContent()], { type: 'application/json' });
+        extension = '.json';
+        mimeType = 'application/json';
         break;
       case 'txt':
-        mimeType = 'text/plain';
+        blob = new Blob([generateTxtContent()], { type: 'text/plain' });
         extension = '.txt';
-        content = Object.entries(data.content)
-          .filter(([, v]) => v)
-          .map(([key, val]) => `=== ${key.toUpperCase()} ===\n${val}`)
-          .join('\n\n');
-        break;
-      case 'pdf':
-        mimeType = 'application/pdf';
-        extension = '.pdf';
-        content = 'PDF export placeholder - use server-side rendering for full PDF support.';
+        mimeType = 'text/plain';
         break;
       case 'srt':
-        mimeType = 'text/plain';
+        blob = new Blob([generateSrtContent()], { type: 'text/plain' });
         extension = '.srt';
-        content = '1\n00:00:00,000 --> 00:00:05,000\nSession transcript placeholder\n';
+        mimeType = 'text/plain';
         break;
+      case 'pdf':
+        blob = await generatePdfContent();
+        extension = '.html'; // Changed to .html since we're generating HTML
+        mimeType = 'text/html';
+        break;
+      default:
+        return;
     }
 
-    const blob = new Blob([content], { type: mimeType });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${sessionName.replace(/\s+/g, '_')}${extension}`;
+    a.download = `${session.name.replace(/\s+/g, '_')}${extension}`;
+    document.body.appendChild(a);
     a.click();
+    document.body.removeChild(a);
     URL.revokeObjectURL(url);
 
     setOpen(false);

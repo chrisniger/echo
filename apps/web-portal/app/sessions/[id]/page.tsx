@@ -5,6 +5,8 @@ import { api, getToken } from '@/lib/api';
 import { Sidebar } from '@/components/Sidebar';
 import { format } from 'date-fns';
 import { ArrowLeft, Download } from 'lucide-react';
+import type { SessionType } from '@echo-gpt/shared-types';
+import { SessionTypePill } from '@/lib/session-type-styles';
 
 interface SessionDetail {
   id: string;
@@ -18,6 +20,7 @@ interface SessionDetail {
   screenshots?: string[];
   documents?: Array<{ name: string }>;
   summary?: string;
+  sessionType?: SessionType;
 }
 
 export default function SessionDetailPage() {
@@ -70,7 +73,10 @@ export default function SessionDetailPage() {
         </button>
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold">{session.name}</h1>
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="text-2xl font-bold">{session.name}</h1>
+              {session.sessionType && <SessionTypePill type={session.sessionType} className="px-3 py-1 text-sm" />}
+            </div>
             <p className="text-sm text-zinc-500 mt-1">
               {format(new Date(session.createdAt), 'MMM d, yyyy h:mm a')}
               {session.model && ` · ${session.model}`}

@@ -55,6 +55,11 @@ export class WsGateway {
 
       this.clients.set(ws, info);
 
+      // Auto-join the user-level room so companion devices (subscribed to user:userId)
+      // receive every session-scoped event the desktop publishes.
+      this.rooms.join(`user:${payload.userId}`, ws);
+      info.subscriptions.add(`user:${payload.userId}`);
+
       ws.send(JSON.stringify({ type: 'connected', userId: payload.userId }));
 
       const heartbeat = setInterval(() => {
@@ -112,6 +117,8 @@ export class WsGateway {
           if (
             [
               'transcript.update',
+              'ai.response',
+              'ai.request',
               'session.start',
               'session.pause',
               'session.resume',
@@ -154,6 +161,20 @@ export class WsGateway {
         if (!msg.data) return;
         event = { type: 'transcript.update', data: msg.data };
         break;
+      case 'ai.response':
+        if (!msg.data) return;
+        event = { type: 'ai.response', data: msg.data };
+        break;
+      case 'ai.request':
+        // Companion → Desktop: ask Desktop's AI Gateway to answer on behalf of this user.
+        // We re-broadcast to the user room so the active Desktop picks it up; that Desktop
+        // will then call the AI Gateway and publish a regular `ai.response`.
+        if (!msg.data) return;
+        event = { type: 'ai.response', data: { sessionId: msg.data.sessionId, content: '', isFinal: false } };
+        // The actual ai.request payload rides along as a special event so Desktop can read it.
+        (event as any).type = 'ai.request';
+        (event as any).data = msg.data;
+        break;
       case 'session.start':
         event = { type: 'session.start', data: msg.data };
         break;
@@ -170,10 +191,18 @@ export class WsGateway {
 
     if (event) {
       const payload = JSON.stringify(event);
-      // Broadcast to the session room
       const sessionId = event.data?.sessionId;
+
       if (sessionId) {
+        // Broadcast to the session room (other desktop instances for the same session)
         this.rooms.broadcast(sessionId, payload, ws);
+      }
+
+      // Always also broadcast to the user's room so the companion (paired mobile device)
+      // receives every event without needing to know the active sessionId.
+      const userId = this.clients.get(ws)?.userId;
+      if (userId) {
+        this.rooms.broadcast(`user:${userId}`, payload, ws);
       }
     }
   }
@@ -190,6 +219,21 @@ export class WsGateway {
         }
       }
     }
+  }
+
+  /**
+   * Server-initiated broadcast for a session-scoped event. Fans out to both
+   * the per-session room (other desktop instances on the same session) and
+   * the per-user room (Flutter companion, mobile web, etc.) — same dual
+   * fan-out used by `handleClientEvent` for client-initiated events.
+   *
+   * Used by routes that mutate server state (e.g. PATCH /sessions/:id) so
+   * every connected surface sees the change without polling.
+   */
+  broadcastSessionEvent(event: WsEventPayload, sessionId: string, userId: string): void {
+    const payload = JSON.stringify(event);
+    this.rooms.broadcast(sessionId, payload);
+    this.rooms.broadcast(`user:${userId}`, payload);
   }
 
   sendToUser(userId: string, event: WsEventPayload): void {

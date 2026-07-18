@@ -5,6 +5,11 @@ import { api, getToken } from '@/lib/api';
 import { Sidebar } from '@/components/Sidebar';
 import { format } from 'date-fns';
 import { Search as SearchIcon, Calendar } from 'lucide-react';
+import type { SessionType } from '@echo-gpt/shared-types';
+import {
+  SESSION_TYPE_VALUES,
+  SessionTypePill,
+} from '@/lib/session-type-styles';
 
 interface Session {
   id: string;
@@ -14,6 +19,7 @@ interface Session {
   tags?: string[];
   createdAt: string;
   duration?: number;
+  sessionType?: SessionType;
 }
 
 export default function SessionsPage() {
@@ -21,6 +27,7 @@ export default function SessionsPage() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState<'all' | SessionType>('all');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -41,6 +48,7 @@ export default function SessionsPage() {
 
   const filtered = sessions.filter((s) => {
     if (filter !== 'all' && s.status !== filter) return false;
+    if (typeFilter !== 'all' && s.sessionType !== typeFilter) return false;
     if (search && !s.name.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
@@ -58,8 +66,8 @@ export default function SessionsPage() {
       <Sidebar />
       <main className="flex-1 p-8">
         <h1 className="text-3xl font-bold mb-6">Session History</h1>
-        <div className="flex gap-4 mb-6">
-          <div className="relative flex-1">
+        <div className="flex flex-wrap gap-4 mb-6">
+          <div className="relative flex-1 min-w-[220px]">
             <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
             <input
               value={search}
@@ -73,9 +81,19 @@ export default function SessionsPage() {
             onChange={(e) => setFilter(e.target.value)}
             className="px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-echo-500"
           >
-            <option value="all">All</option>
+            <option value="all">All status</option>
             <option value="completed">Completed</option>
             <option value="in-progress">In Progress</option>
+          </select>
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value as 'all' | SessionType)}
+            className="px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-echo-500"
+          >
+            <option value="all">All types</option>
+            {SESSION_TYPE_VALUES.map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
           </select>
         </div>
         {filtered.length === 0 ? (
@@ -88,9 +106,12 @@ export default function SessionsPage() {
                 className="flex items-center justify-between p-4 bg-zinc-900 border border-zinc-800 rounded-lg hover:border-zinc-700 cursor-pointer"
                 onClick={() => router.push(`/sessions/${s.id}`)}
               >
-                <div className="flex-1">
-                  <p className="font-medium">{s.name}</p>
-                  <p className="text-sm text-zinc-500 flex items-center gap-1 mt-1">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-medium truncate">{s.name}</p>
+                    {s.sessionType && <SessionTypePill type={s.sessionType} compact />}
+                  </div>
+                  <p className="text-sm text-zinc-500 flex items-center gap-1 mt-1 flex-wrap">
                     <Calendar className="w-3 h-3" />
                     {format(new Date(s.createdAt), 'MMM d, yyyy h:mm a')}
                     {s.model && ` · ${s.model}`}

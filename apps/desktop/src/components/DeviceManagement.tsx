@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Monitor, Smartphone, Trash2, Edit3, Check, X, RefreshCw, Copy } from 'lucide-react';
+import { Monitor, Smartphone, Trash2, Edit3, Check, X, RefreshCw, Copy, Link } from 'lucide-react';
 import { usePairingStore, type PairedDevice } from '../stores/pairing';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -13,10 +13,13 @@ export function DeviceManagement() {
     isLoading,
     error,
     activeCode,
+    pendingPairings,
     fetchDevices,
+    fetchPendingPairings,
     requestPairingCode,
     approvePairing,
     rejectPairing,
+    verifyPairingCode,
     renameDevice,
     removeDevice,
     clearCode,
@@ -27,16 +30,22 @@ export function DeviceManagement() {
   const [showPairDialog, setShowPairDialog] = useState(false);
   const [newDeviceName, setNewDeviceName] = useState('');
   const [copied, setCopied] = useState(false);
+  const [phoneCode, setPhoneCode] = useState('');
+  const [verifying, setVerifying] = useState(false);
 
   useEffect(() => {
     fetchDevices();
-  }, [fetchDevices]);
+    fetchPendingPairings();
+    const interval = setInterval(fetchPendingPairings, 5000);
+    return () => clearInterval(interval);
+  }, [fetchDevices, fetchPendingPairings]);
 
   const handleGenerateCode = async () => {
     if (!newDeviceName.trim()) return;
     try {
       await requestPairingCode(newDeviceName.trim());
       setNewDeviceName('');
+      await fetchPendingPairings();
     } catch {}
   };
 
@@ -46,6 +55,21 @@ export function DeviceManagement() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
+  };
+
+  const handleEnterPhoneCode = async () => {
+    const code = phoneCode.trim().toUpperCase();
+    if (code.length !== 6) return;
+    setVerifying(true);
+    try {
+      const result = await verifyPairingCode(code);
+      if (result.token) {
+        await approvePairing(result.token);
+        setPhoneCode('');
+        setShowPairDialog(false);
+      }
+    } catch {}
+    setVerifying(false);
   };
 
   const handleRename = async (id: string) => {
@@ -67,7 +91,7 @@ export function DeviceManagement() {
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-medium">Paired Devices</h3>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={fetchDevices} disabled={isLoading}>
+          <Button variant="outline" size="sm" onClick={() => { fetchDevices(); fetchPendingPairings(); }} disabled={isLoading}>
             <RefreshCw className={`w-4 h-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
@@ -82,19 +106,48 @@ export function DeviceManagement() {
               <div className="space-y-4 pt-4">
                 {!activeCode ? (
                   <>
-                    <Input
-                      placeholder="Device name (e.g., My Phone)"
-                      value={newDeviceName}
-                      onChange={(e) => setNewDeviceName(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleGenerateCode()}
-                    />
-                    <Button
-                      onClick={handleGenerateCode}
-                      disabled={!newDeviceName.trim() || isLoading}
-                      className="w-full"
-                    >
-                      Generate Pairing Code
-                    </Button>
+                    <div className="space-y-3">
+                      <p className="text-sm text-zinc-400">Option 1: Generate a code from desktop</p>
+                      <Input
+                        placeholder="Device name (e.g., My Phone)"
+                        value={newDeviceName}
+                        onChange={(e) => setNewDeviceName(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleGenerateCode()}
+                      />
+                      <Button
+                        onClick={handleGenerateCode}
+                        disabled={!newDeviceName.trim() || isLoading}
+                        className="w-full"
+                      >
+                        Generate Pairing Code
+                      </Button>
+                    </div>
+                    <div className="relative">
+                      <div className="absolute inset-0 flex items-center">
+                        <span className="w-full border-t border-zinc-700" />
+                      </div>
+                      <div className="relative flex justify-center text-xs uppercase">
+                        <span className="bg-zinc-950 px-2 text-zinc-500">Or</span>
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <p className="text-sm text-zinc-400">Option 2: Enter code from phone</p>
+                      <Input
+                        placeholder="Enter 6-character code"
+                        value={phoneCode}
+                        onChange={(e) => setPhoneCode(e.target.value.toUpperCase())}
+                        onKeyDown={(e) => e.key === 'Enter' && handleEnterPhoneCode()}
+                        maxLength={6}
+                        className="font-mono text-center text-lg tracking-widest"
+                      />
+                      <Button
+                        onClick={handleEnterPhoneCode}
+                        disabled={phoneCode.length !== 6 || verifying}
+                        className="w-full"
+                      >
+                        {verifying ? 'Verifying...' : 'Pair with Code'}
+                      </Button>
+                    </div>
                   </>
                 ) : (
                   <div className="space-y-4">
@@ -140,6 +193,49 @@ export function DeviceManagement() {
           <button onClick={clearError} className="text-red-400 hover:text-red-300">
             <X className="w-4 h-4" />
           </button>
+        </div>
+      )}
+
+      {pendingPairings.length > 0 && (
+        <div className="space-y-2">
+          <h4 className="text-sm font-medium text-zinc-400">Pending Requests</h4>
+          {pendingPairings.map((pairing) => (
+            <Card key={pairing.id} className="bg-yellow-900/20 border-yellow-800/50">
+              <CardContent className="flex items-center justify-between p-4">
+                <div className="flex items-center gap-3">
+                  <Link className="w-4 h-4 text-yellow-500" />
+                  <div>
+                    <span className="font-medium">{pairing.deviceName}</span>
+                    <Badge variant="outline" className="text-xs ml-2">
+                      {pairing.platform}
+                    </Badge>
+                    <p className="text-xs text-zinc-500">
+                      Code: <span className="font-mono">{pairing.code}</span>
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    size="sm"
+                    onClick={() => approvePairing(pairing.token)}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    <Check className="w-4 h-4 mr-1" />
+                    Approve
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => rejectPairing(pairing.token)}
+                    className="text-red-400 hover:text-red-300"
+                  >
+                    <X className="w-4 h-4 mr-1" />
+                    Reject
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       )}
 

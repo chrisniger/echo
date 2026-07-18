@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { FileText, Search, Sparkles, ChevronDown, ChevronRight, Loader2, FileUp } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Button } from './ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
 import { Input } from './ui/input';
+import { useCvStore } from '../stores/cv';
+import { analyzeDocument, type DocumentAnalysis } from '../services/documentAnalysis';
 
 interface DocumentItem {
   id: string;
@@ -12,20 +14,30 @@ interface DocumentItem {
   status: 'pending' | 'analyzing' | 'analyzed';
   keyPoints?: string[];
   summary?: string;
+  parsedText?: string | null;
 }
 
-const mockDocuments: DocumentItem[] = [
-  { id: '1', name: 'Job_Description.pdf', status: 'analyzed', keyPoints: ['5+ years React', 'Team lead experience', 'Remote position'], summary: 'Senior frontend position requiring extensive React knowledge and team leadership skills.' },
-  { id: '2', name: 'Company_Profile.docx', status: 'analyzed', keyPoints: ['SaaS company', '200 employees', 'Founded 2018'], summary: 'Mid-stage SaaS company in the analytics space.' },
-  { id: '3', name: 'Technical_Requirements.pdf', status: 'pending' },
-];
-
 export default function DocumentAnalysis() {
-  const [documents, setDocuments] = useState<DocumentItem[]>(mockDocuments);
+  const { cvList, fetchCvs } = useCvStore();
+  const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedDocs, setExpandedDocs] = useState<Set<string>>(new Set());
   const [extractingId, setExtractingId] = useState<string | null>(null);
   const [summarizingId, setSummarizingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchCvs();
+  }, [fetchCvs]);
+
+  useEffect(() => {
+    // Convert CV list to document items
+    setDocuments(cvList.map(cv => ({
+      id: cv.id,
+      name: cv.name,
+      status: cv.parsedText ? 'analyzed' : 'pending',
+      parsedText: cv.parsedText,
+    })));
+  }, [cvList]);
 
   const toggleExpand = (id: string) => {
     setExpandedDocs((prev) => {
@@ -37,29 +49,53 @@ export default function DocumentAnalysis() {
   };
 
   const handleExtractKeyPoints = async (id: string) => {
+    const doc = documents.find(d => d.id === id);
+    if (!doc?.parsedText) return;
+
     setExtractingId(id);
-    await new Promise((r) => setTimeout(r, 1500));
-    setDocuments((prev) =>
-      prev.map((doc) =>
-        doc.id === id
-          ? { ...doc, status: 'analyzed' as const, keyPoints: ['Point 1: Key requirement', 'Point 2: Technical skill', 'Point 3: Experience level'], summary: doc.summary || 'Extracted analysis complete.' }
-          : doc,
-      ),
-    );
-    setExtractingId(null);
+    try {
+      const analysis = await analyzeDocument(doc.parsedText, {
+        extractKeyPoints: true,
+        summarize: false,
+      });
+      
+      setDocuments((prev) =>
+        prev.map((d) =>
+          d.id === id
+            ? { ...d, status: 'analyzed', keyPoints: analysis.keyPoints }
+            : d,
+        ),
+      );
+    } catch (error) {
+      console.error('Failed to extract key points:', error);
+    } finally {
+      setExtractingId(null);
+    }
   };
 
   const handleSummarize = async (id: string) => {
+    const doc = documents.find(d => d.id === id);
+    if (!doc?.parsedText) return;
+
     setSummarizingId(id);
-    await new Promise((r) => setTimeout(r, 1500));
-    setDocuments((prev) =>
-      prev.map((doc) =>
-        doc.id === id
-          ? { ...doc, status: 'analyzed' as const, summary: 'This document contains key information relevant to the current session. The main topics include technical requirements, team structure, and project timelines.' }
-          : doc,
-      ),
-    );
-    setSummarizingId(null);
+    try {
+      const analysis = await analyzeDocument(doc.parsedText, {
+        extractKeyPoints: false,
+        summarize: true,
+      });
+      
+      setDocuments((prev) =>
+        prev.map((d) =>
+          d.id === id
+            ? { ...d, status: 'analyzed', summary: analysis.summary }
+            : d,
+        ),
+      );
+    } catch (error) {
+      console.error('Failed to summarize:', error);
+    } finally {
+      setSummarizingId(null);
+    }
   };
 
   const filteredDocs = documents.filter((doc) =>

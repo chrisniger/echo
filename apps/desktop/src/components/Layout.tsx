@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   PlusCircle,
@@ -11,11 +11,18 @@ import {
   Bot,
   User,
   FileText,
+  Minimize2,
+  Mic,
 } from 'lucide-react';
 import { useAuthStore } from '../stores/auth';
+import { useSessionStore } from '../stores/session';
+import { useDeviceStore } from '../stores/device';
 import { cn } from '../lib/utils';
 import { Button } from './ui/button';
 import FloatingAssistant from './FloatingAssistant';
+import ConnectedDevices from './ConnectedDevices';
+import Toasts from './Toasts';
+import { invoke } from '@tauri-apps/api/core';
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -29,12 +36,26 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
   const { user, logout } = useAuthStore();
+  const { currentSession } = useSessionStore();
+  const { connectedDevices } = useDeviceStore();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
+
+  const handleHideToTray = async () => {
+    try {
+      await invoke('hide_to_tray');
+    } catch (e) {
+      console.error('Failed to hide to tray:', e);
+    }
+  };
+
+  const isActiveSession = currentSession?.status === 'active';
+  const isOnSessionPage = location.pathname.startsWith('/sessions/');
 
   return (
     <div className="flex h-screen overflow-hidden bg-zinc-950">
@@ -69,6 +90,34 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </NavLink>
           ))}
         </nav>
+
+        {isActiveSession && !isOnSessionPage && (
+          <div className="mx-3 mb-4 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500/20">
+                <Mic className="h-4 w-4 text-emerald-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-emerald-400">Active Session</p>
+                <p className="text-xs text-zinc-400 truncate">{currentSession.name}</p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full text-xs"
+              onClick={() => navigate(`/sessions/${currentSession.id}`)}
+            >
+              View Session
+            </Button>
+          </div>
+        )}
+
+        {connectedDevices.length > 0 && (
+          <div className="mx-3 mb-4">
+            <ConnectedDevices />
+          </div>
+        )}
 
         <div className="border-t border-zinc-800 p-4">
           <div className="flex items-center gap-3 mb-3">
@@ -109,6 +158,24 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
           <div className="flex-1" />
 
+          {isActiveSession && (
+            <div className="flex items-center gap-2 rounded-full bg-emerald-500/20 px-3 py-1">
+              <div className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
+              <span className="text-xs font-medium text-emerald-400">Listening</span>
+            </div>
+          )}
+
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleHideToTray}
+            className="gap-2 text-zinc-400"
+            title="Hide to system tray"
+          >
+            <Minimize2 className="h-4 w-4" />
+            <span className="hidden sm:inline">Hide</span>
+          </Button>
+
           <Button
             variant="outline"
             size="sm"
@@ -128,6 +195,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {assistantOpen && (
         <FloatingAssistant onClose={() => setAssistantOpen(false)} />
       )}
+
+      <Toasts />
     </div>
   );
 }
