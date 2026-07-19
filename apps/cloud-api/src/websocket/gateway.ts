@@ -123,6 +123,7 @@ export class WsGateway {
               'session.pause',
               'session.resume',
               'session.end',
+              'screenshot.trigger',
             ].includes(msg.action)
           ) {
             this.handleClientEvent(ws, msg);
@@ -170,7 +171,10 @@ export class WsGateway {
         // We re-broadcast to the user room so the active Desktop picks it up; that Desktop
         // will then call the AI Gateway and publish a regular `ai.response`.
         if (!msg.data) return;
-        event = { type: 'ai.response', data: { sessionId: msg.data.sessionId, content: '', isFinal: false } };
+        event = {
+          type: 'ai.response',
+          data: { sessionId: msg.data.sessionId, content: '', isFinal: false },
+        };
         // The actual ai.request payload rides along as a special event so Desktop can read it.
         (event as any).type = 'ai.request';
         (event as any).data = msg.data;
@@ -186,6 +190,9 @@ export class WsGateway {
         break;
       case 'session.end':
         event = { type: 'session.end', data: msg.data };
+        break;
+      case 'screenshot.trigger':
+        event = { type: 'screenshot.trigger', data: msg.data ?? {} };
         break;
     }
 

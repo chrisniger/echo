@@ -2,7 +2,11 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import http from 'http';
+import os from 'os';
+import Bonjour from 'bonjour-service';
+import { z } from 'zod';
 import { config } from './config.js';
+import { requireAuth } from './middleware/auth.js';
 import authRoutes from './routes/auth.js';
 import userRoutes from './routes/users.js';
 import { createSubscriptionsRouter } from './routes/subscriptions.js';
@@ -79,6 +83,44 @@ declare module 'express' {
 
 getDb();
 
+// Shared mDNS state so the /settings/mdns endpoint can enable/disable
+// advertisement at runtime without restarting the server.
+let mdnsBonjour: Bonjour | null = null;
+let mdnsService: any = null;
+let mdnsEnabled = process.env.ENABLE_MDNS !== 'false';
+
+function publishMdns() {
+  if (!mdnsEnabled || mdnsService !== null) return;
+  try {
+    mdnsBonjour = new Bonjour();
+    const hostname = os.hostname() || 'unknown';
+    mdnsService = mdnsBonjour.publish({
+      name: `Echo Cloud API (${hostname})`,
+      type: 'echo',
+      protocol: 'tcp',
+      port: config.PORT,
+      txt: { path: '/api', version: '1.0.0' },
+    });
+    console.log(`[Echo Cloud API] mDNS advertisement started: _echo._tcp on port ${config.PORT}`);
+  } catch (err) {
+    console.error('[Echo Cloud API] Failed to start mDNS advertisement:', err);
+  }
+}
+
+function unpublishMdns() {
+  if (mdnsBonjour === null) return;
+  try {
+    mdnsBonjour.unpublishAll(() => {
+      mdnsBonjour?.destroy();
+      mdnsBonjour = null;
+      mdnsService = null;
+      console.log('[Echo Cloud API] mDNS advertisement stopped');
+    });
+  } catch (err) {
+    console.error('[Echo Cloud API] Failed to stop mDNS advertisement:', err);
+  }
+}
+
 const server = http.createServer(app);
 const wsGateway = new WsGateway(server);
 
@@ -86,9 +128,30 @@ const wsGateway = new WsGateway(server);
 // can broadcast WS events without app.locals or a router factory.
 setWsGateway(wsGateway);
 
+// Runtime toggle for mDNS advertisement from the desktop settings UI.
+const mdnsToggleSchema = z.object({ enabled: z.boolean() });
+app.post('/api/settings/mdns', requireAuth, (req, res) => {
+  const parsed = mdnsToggleSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Validation error', details: parsed.error.errors });
+    return;
+  }
+  mdnsEnabled = parsed.data.enabled;
+  if (mdnsEnabled) {
+    publishMdns();
+  } else {
+    unpublishMdns();
+  }
+  res.json({ enabled: mdnsEnabled });
+});
+
 server.listen(config.PORT, '0.0.0.0', () => {
   console.log(`[Echo Cloud API] Server running on http://0.0.0.0:${config.PORT}`);
   console.log(`[Echo Cloud API] WebSocket available at ws://0.0.0.0:${config.PORT}/ws`);
+
+  // Start mDNS advertisement if enabled (default true). The desktop can toggle
+  // this at runtime via POST /api/settings/mdns.
+  publishMdns();
 });
 
 export default app;

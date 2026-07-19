@@ -1,7 +1,7 @@
 import { getAccessToken, getRefreshToken, storeTokens, clearTokens, isTokenExpired } from './auth';
 
-const CLOUD_BASE_URL = import.meta.env.VITE_CLOUD_API_URL || '/api/cloud';
-const GATEWAY_BASE_URL = import.meta.env.VITE_GATEWAY_API_URL || '/api/gateway';
+const CLOUD_BASE_URL = import.meta.env.VITE_CLOUD_API_URL || 'http://localhost:4000/api';
+const GATEWAY_BASE_URL = import.meta.env.VITE_GATEWAY_API_URL || 'http://localhost:4001/api';
 
 // Callbacks for global state changes triggered by auth
 type AuthEventHandler = () => void;
@@ -14,13 +14,22 @@ export function onAuthRefresh(handler: AuthEventHandler): () => void {
 
 function notifyAuthRefreshed() {
   for (const h of authEventHandlers) {
-    try { h(); } catch { /* ignore */ }
+    try {
+      h();
+    } catch {
+      /* ignore */
+    }
   }
 }
 
 interface RequestOptions extends Omit<RequestInit, 'body'> {
   body?: unknown;
   params?: Record<string, string>;
+  /**
+   * Request timeout in milliseconds. Defaults to 15000 (15s).
+   * Set to 0 to disable the timeout.
+   */
+  timeoutMs?: number;
 }
 
 class ApiClient {
@@ -44,11 +53,15 @@ class ApiClient {
     const refreshToken = getRefreshToken();
     if (!refreshToken) return false;
 
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 10_000);
+
     try {
       const res = await fetch(`${CLOUD_BASE_URL}/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken }),
+        signal: controller.signal,
       });
 
       if (!res.ok) return false;
@@ -59,11 +72,17 @@ class ApiClient {
       return true;
     } catch {
       return false;
+    } finally {
+      window.clearTimeout(timeoutId);
     }
   }
 
-  private async request<T>(path: string, options: RequestOptions = {}, isRetry = false): Promise<T> {
-    const { body, params, ...init } = options;
+  private async request<T>(
+    path: string,
+    options: RequestOptions = {},
+    isRetry = false,
+  ): Promise<T> {
+    const { body, params, timeoutMs = 15000, ...init } = options;
 
     // Proactively refresh if we know the access token is expired (saves a 401 round-trip)
     if (!isRetry && isTokenExpired() && getRefreshToken()) {
@@ -88,30 +107,58 @@ class ApiClient {
       headers['Content-Type'] = 'application/json';
     }
 
-    const response = await fetch(this.buildUrl(path, params), {
-      ...init,
-      headers,
-      body: body instanceof FormData ? body : body ? JSON.stringify(body) : undefined,
-    });
+    const controller = new AbortController();
+    let timeoutId: number | null = null;
+    if (timeoutMs > 0) {
+      timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+    }
 
-    if (response.status === 401 && !isRetry) {
-      const refreshed = await this.refreshAuth();
-      if (refreshed) {
-        return this.request<T>(path, options, true);
+    try {
+      const response = await fetch(this.buildUrl(path, params), {
+        ...init,
+        headers,
+        signal: controller.signal,
+        body: body instanceof FormData ? body : body ? JSON.stringify(body) : undefined,
+      });
+
+      if (response.status === 401 && !isRetry) {
+        const refreshed = await this.refreshAuth();
+        if (refreshed) {
+          return this.request<T>(path, options, true);
+        }
+        // Refresh failed: surface the error so the caller can decide. Do NOT
+        // force a redirect to /login — the background timer in App.tsx handles
+        // logout decisions.
+        const errorBody = await response.json().catch(() => ({}));
+        throw new ApiError(401, errorBody.message || 'Session expired', errorBody);
       }
-      // Refresh failed: surface the error so the caller can decide. Do NOT
-      // force a redirect to /login — the background timer in App.tsx handles
-      // logout decisions.
-      const errorBody = await response.json().catch(() => ({}));
-      throw new ApiError(401, errorBody.message || 'Session expired', errorBody);
-    }
 
-    if (!response.ok) {
-      const errorBody = await response.json().catch(() => ({}));
-      throw new ApiError(response.status, errorBody.message || response.statusText, errorBody);
-    }
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        throw new ApiError(response.status, errorBody.message || response.statusText, errorBody);
+      }
 
-    return response.json();
+      return response.json();
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        throw new ApiError(408, 'Request timed out. Please check your network and try again.', {});
+      }
+      // fetch() throws a TypeError when the request cannot complete because the
+      // server is unreachable (e.g. Cloud API is not running). Replace the
+      // browser's generic "Failed to fetch" message with something actionable.
+      if (err instanceof TypeError) {
+        throw new ApiError(
+          0,
+          `Cannot connect to the Cloud API at ${this.baseURL}. Please make sure the server is running.`,
+          {},
+        );
+      }
+      throw err;
+    } finally {
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+    }
   }
 
   async get<T>(path: string, options?: RequestOptions): Promise<T> {

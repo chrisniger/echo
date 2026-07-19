@@ -14,17 +14,22 @@ class AuthService extends ChangeNotifier {
 
   bool _isAuthenticated = false;
   bool _isPaired = false;
+  bool _isLoading = true;
   String? _userName;
   String? _userEmail;
   String? _error;
 
   bool get isAuthenticated => _isAuthenticated;
   bool get isPaired => _isPaired;
+  bool get isLoading => _isLoading;
   String? get userName => _userName;
   String? get userEmail => _userEmail;
   String? get error => _error;
 
   Future<void> init() async {
+    _isLoading = true;
+    notifyListeners();
+
     final token = await _storage.read(key: 'access_token');
     final refreshToken = await _storage.read(key: 'refresh_token');
     _isAuthenticated = token != null || refreshToken != null;
@@ -35,9 +40,25 @@ class AuthService extends ChangeNotifier {
         _userName = data['user']['name'] as String?;
         _userEmail = data['user']['email'] as String?;
       } catch (_) {
-        _isAuthenticated = false;
-        notifyListeners();
-        return;
+        // Access token may be expired; try to refresh before giving up.
+        final refreshed = await _api.tryRefreshToken();
+        if (refreshed) {
+          try {
+            final data = await _api.getMap('/auth/me');
+            _userName = data['user']['name'] as String?;
+            _userEmail = data['user']['email'] as String?;
+          } catch (_) {
+            _isAuthenticated = false;
+            _isLoading = false;
+            notifyListeners();
+            return;
+          }
+        } else {
+          _isAuthenticated = false;
+          _isLoading = false;
+          notifyListeners();
+          return;
+        }
       }
 
       // Determine pairing state from explicit flag, falling back to devices list
@@ -63,6 +84,7 @@ class AuthService extends ChangeNotifier {
         }
       }
     }
+    _isLoading = false;
     notifyListeners();
   }
 

@@ -4,7 +4,7 @@ import { useSessionStore } from '../stores/session';
 import { useSettingsStore } from '../stores/settings';
 import { gatewayApi } from '../lib/api';
 import { buildContextMessages } from '../lib/context';
-import { getAccessToken } from '../lib/auth';
+import { getAccessToken, isTokenExpired } from '../lib/auth';
 import { getWsClient } from './useWebSocket';
 import {
   createQuestionDetectionEngine,
@@ -176,12 +176,14 @@ export function useSessionBackground({
       enabled: true,
       threshold: 0.7,
       responseDelayMs: 0,
+      cooldownMs: 15000,
       contextWindowSize: 30,
       enableFastRules: true,
       enablePatterns: true,
       enableContextMemory: true,
       enableClassifier: false,
       questionPatterns: [],
+      classifierModel: undefined,
     };
     const engineConfig: EngineConfig = {
       enabled: qd.enabled,
@@ -313,6 +315,7 @@ export function useSessionBackground({
         ws.send({
           action: 'transcript.update',
           data: {
+            id: segId,
             sessionId: session.id,
             speaker: i === 0 ? 'Interviewer' : 'Speaker',
             text,
@@ -458,6 +461,20 @@ export function useSessionBackground({
       if (stopped) return;
       if (!getAccessToken()) {
         log('No auth token yet, skipping transcription tick');
+        onCaptureStateChange?.({
+          isCapturing: false,
+          source: sourceRef.current,
+          error: 'Not authenticated',
+        });
+        return;
+      }
+      if (isTokenExpired()) {
+        log('Access token expired, skipping transcription tick');
+        onCaptureStateChange?.({
+          isCapturing: false,
+          source: sourceRef.current,
+          error: 'Session expired — please sign in again',
+        });
         return;
       }
       const result = await transcribeViaTauri(gatewayUrl);

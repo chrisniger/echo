@@ -145,12 +145,11 @@ class ApiService extends ChangeNotifier {
   };
 
   Future<dynamic> get(String path) async {
-    var res = await http.get(Uri.parse('$baseUrl/api$path'), headers: _headers);
-    if (res.statusCode == 401) {
-      if (await _tryRefreshToken()) {
-        res = await http.get(Uri.parse('$baseUrl/api$path'), headers: _headers);
+    var res = await http.get(Uri.parse('$baseUrl/api$path'), headers: _headers);      if (res.statusCode == 401) {
+        if (await tryRefreshToken()) {
+          res = await http.get(Uri.parse('$baseUrl/api$path'), headers: _headers);
+        }
       }
-    }
     if (res.statusCode == 401) throw Exception('Unauthorized');
     if (res.statusCode >= 400) throw Exception('API error: ${res.statusCode}');
     return jsonDecode(res.body);
@@ -164,39 +163,36 @@ class ApiService extends ChangeNotifier {
   }
 
   Future<Map<String, dynamic>> post(String path, {Map<String, dynamic>? body}) async {
-    var res = await http.post(Uri.parse('$baseUrl/api$path'), headers: _headers, body: body != null ? jsonEncode(body) : null);
-    if (res.statusCode == 401) {
-      if (await _tryRefreshToken()) {
-        res = await http.post(Uri.parse('$baseUrl/api$path'), headers: _headers, body: body != null ? jsonEncode(body) : null);
+    var res = await http.post(Uri.parse('$baseUrl/api$path'), headers: _headers, body: body != null ? jsonEncode(body) : null);      if (res.statusCode == 401) {
+        if (await tryRefreshToken()) {
+          res = await http.post(Uri.parse('$baseUrl/api$path'), headers: _headers, body: body != null ? jsonEncode(body) : null);
+        }
       }
-    }
     if (res.statusCode == 401) throw Exception('Unauthorized');
     if (res.statusCode >= 400) throw Exception('API error: ${res.statusCode} ${res.body}');
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
 
   Future<Map<String, dynamic>> put(String path, {Map<String, dynamic>? body}) async {
-    var res = await http.put(Uri.parse('$baseUrl/api$path'), headers: _headers, body: body != null ? jsonEncode(body) : null);
-    if (res.statusCode == 401) {
-      if (await _tryRefreshToken()) {
-        res = await http.put(Uri.parse('$baseUrl/api$path'), headers: _headers, body: body != null ? jsonEncode(body) : null);
+    var res = await http.put(Uri.parse('$baseUrl/api$path'), headers: _headers, body: body != null ? jsonEncode(body) : null);      if (res.statusCode == 401) {
+        if (await tryRefreshToken()) {
+          res = await http.put(Uri.parse('$baseUrl/api$path'), headers: _headers, body: body != null ? jsonEncode(body) : null);
+        }
       }
-    }
     if (res.statusCode >= 400) throw Exception('API error: ${res.statusCode}');
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
 
   Future<void> delete(String path) async {
-    var res = await http.delete(Uri.parse('$baseUrl/api$path'), headers: _headers);
-    if (res.statusCode == 401) {
-      if (await _tryRefreshToken()) {
-        res = await http.delete(Uri.parse('$baseUrl/api$path'), headers: _headers);
+    var res = await http.delete(Uri.parse('$baseUrl/api$path'), headers: _headers);      if (res.statusCode == 401) {
+        if (await tryRefreshToken()) {
+          res = await http.delete(Uri.parse('$baseUrl/api$path'), headers: _headers);
+        }
       }
-    }
     if (res.statusCode >= 400) throw Exception('API error: ${res.statusCode}');
   }
 
-  Future<bool> _tryRefreshToken() async {
+  Future<bool> tryRefreshToken() async {
     final refreshToken = await _storage.read(key: _refreshTokenKey);
     if (refreshToken == null) return false;
     try {
@@ -398,6 +394,15 @@ class ApiService extends ChangeNotifier {
     if (_wsChannel != null && _isConnected) {
       _wsChannel!.sink.add(jsonEncode(message));
     }
+  }
+
+  /// Ask the paired desktop app to initiate a screenshot capture.
+  /// The desktop will open its area-selection UI and analyze the selected region.
+  /// Returns true if the message was sent, false if the WebSocket is not connected.
+  bool triggerScreenshot() {
+    if (!_isConnected || _wsChannel == null) return false;
+    sendWsMessage({'action': 'screenshot.trigger'});
+    return true;
   }
 
   @override

@@ -63,10 +63,33 @@ class AuthGate extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<AuthService>(
       builder: (context, auth, _) {
+        if (auth.isLoading) return const SplashScreen();
         if (!auth.isAuthenticated) return const LoginScreen();
         if (!auth.isPaired) return const PairingScreen();
         return const HomeScreen();
       },
+    );
+  }
+}
+
+class SplashScreen extends StatelessWidget {
+  const SplashScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.record_voice_over, size: 64, color: Color(0xFF5C7CFA)),
+            SizedBox(height: 16),
+            Text('Echo Companion', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+            SizedBox(height: 24),
+            CircularProgressIndicator(),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -21,10 +21,12 @@ const defaultSettings: UserSettings = {
   enableAutoSummaries: true,
   enableCloudSync: true,
   enableInterviewForceSend: true,
+  enableMdnsAdvertisement: true,
   questionDetection: {
     enabled: true,
     threshold: 0.7,
     responseDelayMs: 0,
+    cooldownMs: 15000,
     contextWindowSize: 30,
     enableFastRules: true,
     enablePatterns: true,
@@ -38,7 +40,15 @@ function loadSettings(): UserSettings {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
-      return { ...defaultSettings, ...JSON.parse(stored) };
+      const parsed = JSON.parse(stored) as Partial<UserSettings>;
+      return {
+        ...defaultSettings,
+        ...parsed,
+        questionDetection: {
+          ...defaultSettings.questionDetection,
+          ...parsed.questionDetection,
+        } as UserSettings['questionDetection'],
+      };
     }
   } catch {
     // ignore

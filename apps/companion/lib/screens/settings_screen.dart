@@ -85,10 +85,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _SectionHeader('Display'),
+          const _SectionHeader('Display'),
           _DisplaySettingsCard(display: display),
           const Divider(height: 32),
-          _SectionHeader('Server'),
+          const _SectionHeader('Server'),
           TextField(
             controller: _serverCtrl,
             decoration: const InputDecoration(
@@ -134,7 +134,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 )),
           ],
           const Divider(height: 32),
-          _SectionHeader('Account'),
+          const _SectionHeader('Account'),
           ListTile(
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.person),
@@ -171,10 +171,10 @@ class _DisplaySettingsCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A1A1A),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF2A2A2A)),
+      decoration: const BoxDecoration(
+        color: Color(0xFF1A1A1A),
+        borderRadius: BorderRadius.all(Radius.circular(12)),
+        border: Border.fromBorderSide(BorderSide(color: Color(0xFF2A2A2A))),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [

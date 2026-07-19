@@ -2,6 +2,7 @@ import { getAccessToken } from '../lib/auth';
 import type { SessionType } from '@echo-gpt/shared-types';
 
 export interface TranscriptUpdate {
+  id?: string;
   sessionId: string;
   speaker: string;
   text: string;
@@ -51,6 +52,11 @@ export interface NotificationEvent {
   data?: Record<string, unknown>;
 }
 
+export interface ScreenshotTriggerEvent {
+  /** Optional session id the screenshot is tied to. */
+  sessionId?: string;
+}
+
 /**
  * Server → desktop: cloud-api PATCH /api/sessions/:id updated a session row.
  * Currently triggers when the user reclassifies sessionType mid-session; the
@@ -80,6 +86,7 @@ export type WsEvent =
   | { type: 'device.connected'; data: DeviceEvent }
   | { type: 'device.disconnected'; data: DeviceEvent }
   | { type: 'notification'; data: NotificationEvent }
+  | { type: 'screenshot.trigger'; data: ScreenshotTriggerEvent }
   | { type: 'subscribed'; rooms: string[] }
   | { type: 'unsubscribed'; rooms: string[] }
   | { type: 'connected'; userId: string }

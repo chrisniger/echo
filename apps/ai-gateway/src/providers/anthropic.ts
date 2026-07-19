@@ -1,5 +1,12 @@
 import { v4 as uuid } from 'uuid';
-import type { ChatRequest, ChatResponse, ChatChunk, AiModel, ChatMessage } from '@echo-gpt/shared-types';
+import type {
+  ChatRequest,
+  ChatResponse,
+  ChatChunk,
+  AiModel,
+  ChatMessage,
+} from '@echo-gpt/shared-types';
+import { contentToString } from '@echo-gpt/shared-types';
 import { BaseProvider } from './index.js';
 import { config } from '../config.js';
 
@@ -23,7 +30,7 @@ export class AnthropicProvider extends BaseProvider {
   private toAnthropicMessages(messages: ChatMessage[]): Array<{ role: string; content: string }> {
     return messages
       .filter((m: ChatMessage) => m.role !== 'system')
-      .map((m: ChatMessage) => ({ role: m.role, content: m.content }));
+      .map((m: ChatMessage) => ({ role: m.role, content: contentToString(m.content) }));
   }
 
   async chat(request: ChatRequest, options?: { signal?: AbortSignal }): Promise<ChatResponse> {
@@ -37,7 +44,7 @@ export class AnthropicProvider extends BaseProvider {
       max_tokens: request.maxTokens ?? 4096,
       stream: false,
     };
-    if (systemMsg) body.system = systemMsg.content;
+    if (systemMsg) body.system = contentToString(systemMsg.content);
 
     const response = await fetch(`${config.anthropic.baseUrl}/messages`, {
       method: 'POST',
@@ -51,7 +58,7 @@ export class AnthropicProvider extends BaseProvider {
       throw new Error(`Anthropic API error ${response.status}: ${error}`);
     }
 
-    const data = await response.json() as {
+    const data = (await response.json()) as {
       id: string;
       content: Array<{ text: string }>;
       stop_reason: string;
@@ -73,7 +80,10 @@ export class AnthropicProvider extends BaseProvider {
     };
   }
 
-  async *chatStream(request: ChatRequest, options?: { signal?: AbortSignal }): AsyncGenerator<ChatChunk> {
+  async *chatStream(
+    request: ChatRequest,
+    options?: { signal?: AbortSignal },
+  ): AsyncGenerator<ChatChunk> {
     const systemMsg = request.messages.find((m: ChatMessage) => m.role === 'system');
     const messages = this.toAnthropicMessages(request.messages);
 
@@ -83,7 +93,7 @@ export class AnthropicProvider extends BaseProvider {
       max_tokens: request.maxTokens ?? 4096,
       stream: true,
     };
-    if (systemMsg) body.system = systemMsg.content;
+    if (systemMsg) body.system = contentToString(systemMsg.content);
 
     const response = await fetch(`${config.anthropic.baseUrl}/messages`, {
       method: 'POST',
@@ -156,7 +166,9 @@ export class AnthropicProvider extends BaseProvider {
     }
   }
 
-  protected extractStreamContent(parsed: unknown): { content: string; finishReason?: string } | null {
+  protected extractStreamContent(
+    parsed: unknown,
+  ): { content: string; finishReason?: string } | null {
     const data = parsed as { type: string; delta?: { text?: string }; stop_reason?: string };
     if (data.type === 'content_block_delta' && data.delta?.text) {
       return { content: data.delta.text };
