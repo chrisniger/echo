@@ -4,7 +4,7 @@ import { useSessionStore } from '../stores/session';
 import { useSettingsStore } from '../stores/settings';
 import { gatewayApi } from '../lib/api';
 import { buildContextMessages } from '../lib/context';
-import { getAccessToken, isTokenExpired } from '../lib/auth';
+import { getAccessToken } from '../lib/auth';
 import { getWsClient } from './useWebSocket';
 import {
   createQuestionDetectionEngine,
@@ -58,6 +58,7 @@ async function transcribeViaTauri(gatewayUrl?: string): Promise<TranscriptionRes
   try {
     const result = await invoke<TranscriptionResult>('transcribe_audio', {
       gatewayUrl: gatewayUrl ?? null,
+      accessToken: getAccessToken() ?? null,
     });
     return result;
   } catch (err) {
@@ -465,15 +466,6 @@ export function useSessionBackground({
           isCapturing: false,
           source: sourceRef.current,
           error: 'Not authenticated',
-        });
-        return;
-      }
-      if (isTokenExpired()) {
-        log('Access token expired, skipping transcription tick');
-        onCaptureStateChange?.({
-          isCapturing: false,
-          source: sourceRef.current,
-          error: 'Session expired — please sign in again',
         });
         return;
       }

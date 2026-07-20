@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 import {
   AI_GATEWAY,
   DESKTOP,
+  JWT,
   PROVIDER_DEFAULTS,
   RATE_LIMIT_DEFAULTS,
 } from '@echo-gpt/shared-config';
@@ -16,7 +17,10 @@ const TAURI_ORIGINS = [
 ];
 
 function parseCorsOrigins(raw: string): string[] {
-  const list = raw.split(',').map((s) => s.trim()).filter(Boolean);
+  const list = raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
   for (const origin of TAURI_ORIGINS) {
     if (!list.includes(origin)) list.push(origin);
   }
@@ -27,6 +31,10 @@ const rawCorsOrigin = process.env.CORS_ORIGIN || DESKTOP.DEV_URL;
 
 export const config = {
   port: parseInt(process.env.PORT || String(AI_GATEWAY.DEFAULT_PORT), 10),
+  jwtSecret: process.env.JWT_SECRET || JWT.DEFAULT_SECRET,
+  // Shared secret for server-to-server calls from the Cloud API. In production,
+  // this should be a strong, randomly generated secret.
+  apiKey: process.env.AI_GATEWAY_API_KEY || '',
   corsOrigin: parseCorsOrigins(rawCorsOrigin),
   openai: {
     apiKey: process.env.OPENAI_API_KEY || '',

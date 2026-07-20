@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:flutter/foundation.dart';
+import 'discovery_service.dart';
 
 class AiResponseMessage {
   final String sessionId;
@@ -61,7 +62,47 @@ class ApiService extends ChangeNotifier {
   static const String _baseUrlKey = 'cloud_api_url';
   static const String _tokenKey = 'access_token';
   static const String _refreshTokenKey = 'refresh_token';
-  static const String defaultBaseUrl = 'http://192.168.1.102:4000';
+
+  /// Normalize a server URL so it never ends with `/api` or a trailing slash.
+  /// Adds an `http://` scheme if missing. Returns an empty string if the input
+  /// is empty.
+  static String normalizeBaseUrl(String url) {
+    url = url.trim();
+    if (url.isEmpty) return '';
+
+    // Add a scheme if the user only typed an IP:port like 192.168.1.5:4000.
+    if (!url.startsWith(RegExp(r'^https?://', caseSensitive: false))) {
+      url = 'http://$url';
+    }
+
+    // Strip trailing /api or /api/
+    url = url.replaceAll(RegExp(r'/api/?$'), '');
+    // Strip trailing slash
+    url = url.replaceAll(RegExp(r'/$'), '');
+
+    return url;
+  }
+
+  /// Returns true if the URL points to localhost/127.0.0.1/::1, which will not
+  /// work when the companion app is running on a physical phone or emulator.
+  static bool isLocalhost(String url) {
+    try {
+      final host = Uri.parse(url).host.toLowerCase();
+      return host == 'localhost' || host == '127.0.0.1' || host == '::1';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Returns true if the URL is well-formed and has a host and port.
+  static bool isValidServerUrl(String url) {
+    try {
+      final uri = Uri.parse(url);
+      return uri.hasScheme && uri.host.isNotEmpty && uri.port > 0;
+    } catch (_) {
+      return false;
+    }
+  }
 
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
   String? _baseUrl;
@@ -84,12 +125,34 @@ class ApiService extends ChangeNotifier {
   Stream<SessionEventMessage> get sessionEvents => _sessionEventController.stream;
 
   FlutterSecureStorage get storage => _storage;
-  String get baseUrl => _baseUrl ?? defaultBaseUrl;
+  String? get baseUrl => _baseUrl;
+  bool get hasBaseUrl => _baseUrl != null && _baseUrl!.isNotEmpty;
   bool get isConnected => _isConnected;
   String? get userId => _userId;
 
+  /// Throws if no base URL has been configured.
+  String _requireBaseUrl() {
+    final url = _baseUrl;
+    if (url == null || url.isEmpty) {
+      throw Exception('Server URL not configured. Use Scan local network or enter the PC\'s IP.');
+    }
+    return url;
+  }
+
   Future<void> init() async {
-    _baseUrl = await _storage.read(key: _baseUrlKey) ?? defaultBaseUrl;
+    final stored = await _storage.read(key: _baseUrlKey);
+    if (stored != null && stored.isNotEmpty) {
+      final normalized = normalizeBaseUrl(stored);
+      // localhost/127.0.0.1 can never reach the PC from a phone/emulator.
+      if (isLocalhost(normalized)) {
+        debugPrint('[ApiService] Rejecting stored localhost URL: $normalized');
+        _baseUrl = null;
+        await _storage.delete(key: _baseUrlKey);
+      } else if (normalized.isNotEmpty) {
+        _baseUrl = normalized;
+      }
+    }
+    notifyListeners();
     final token = await _storage.read(key: _tokenKey);
     _token = token;
     if (token != null) {
@@ -98,9 +161,39 @@ class ApiService extends ChangeNotifier {
     }
   }
 
+  /// Discover an Echo Cloud API server on the local network and persist it.
+  /// Returns the discovered URL or null if none is found.
+  Future<String?> discoverBaseUrl() async {
+    try {
+      final servers = await DiscoveryService.scanLocalSubnet();
+      for (final server in servers) {
+        final url = normalizeBaseUrl(server.url);
+        if (isValidServerUrl(url) && !isLocalhost(url)) {
+          await setBaseUrl(url);
+          return url;
+        }
+      }
+    } catch (e) {
+      debugPrint('[ApiService] Discovery failed: $e');
+    }
+    return null;
+  }
+
   Future<void> setBaseUrl(String url) async {
-    _baseUrl = url;
-    await _storage.write(key: _baseUrlKey, value: url);
+    final normalized = normalizeBaseUrl(url);
+    if (normalized.isEmpty) {
+      throw ArgumentError('Server URL cannot be empty');
+    }
+    if (!isValidServerUrl(normalized)) {
+      throw ArgumentError('Invalid server URL: $url');
+    }
+    if (isLocalhost(normalized)) {
+      throw ArgumentError(
+        'Use the PC\'s local IP address (e.g. 192.168.x.x:4000), not localhost.',
+      );
+    }
+    _baseUrl = normalized;
+    await _storage.write(key: _baseUrlKey, value: normalized);
     notifyListeners();
   }
 
@@ -145,9 +238,10 @@ class ApiService extends ChangeNotifier {
   };
 
   Future<dynamic> get(String path) async {
-    var res = await http.get(Uri.parse('$baseUrl/api$path'), headers: _headers);      if (res.statusCode == 401) {
+    final base = _requireBaseUrl();
+    var res = await http.get(Uri.parse('$base/api$path'), headers: _headers);      if (res.statusCode == 401) {
         if (await tryRefreshToken()) {
-          res = await http.get(Uri.parse('$baseUrl/api$path'), headers: _headers);
+          res = await http.get(Uri.parse('$base/api$path'), headers: _headers);
         }
       }
     if (res.statusCode == 401) throw Exception('Unauthorized');
@@ -163,9 +257,10 @@ class ApiService extends ChangeNotifier {
   }
 
   Future<Map<String, dynamic>> post(String path, {Map<String, dynamic>? body}) async {
-    var res = await http.post(Uri.parse('$baseUrl/api$path'), headers: _headers, body: body != null ? jsonEncode(body) : null);      if (res.statusCode == 401) {
+    final base = _requireBaseUrl();
+    var res = await http.post(Uri.parse('$base/api$path'), headers: _headers, body: body != null ? jsonEncode(body) : null);      if (res.statusCode == 401) {
         if (await tryRefreshToken()) {
-          res = await http.post(Uri.parse('$baseUrl/api$path'), headers: _headers, body: body != null ? jsonEncode(body) : null);
+          res = await http.post(Uri.parse('$base/api$path'), headers: _headers, body: body != null ? jsonEncode(body) : null);
         }
       }
     if (res.statusCode == 401) throw Exception('Unauthorized');
@@ -174,9 +269,10 @@ class ApiService extends ChangeNotifier {
   }
 
   Future<Map<String, dynamic>> put(String path, {Map<String, dynamic>? body}) async {
-    var res = await http.put(Uri.parse('$baseUrl/api$path'), headers: _headers, body: body != null ? jsonEncode(body) : null);      if (res.statusCode == 401) {
+    final base = _requireBaseUrl();
+    var res = await http.put(Uri.parse('$base/api$path'), headers: _headers, body: body != null ? jsonEncode(body) : null);      if (res.statusCode == 401) {
         if (await tryRefreshToken()) {
-          res = await http.put(Uri.parse('$baseUrl/api$path'), headers: _headers, body: body != null ? jsonEncode(body) : null);
+          res = await http.put(Uri.parse('$base/api$path'), headers: _headers, body: body != null ? jsonEncode(body) : null);
         }
       }
     if (res.statusCode >= 400) throw Exception('API error: ${res.statusCode}');
@@ -184,9 +280,10 @@ class ApiService extends ChangeNotifier {
   }
 
   Future<void> delete(String path) async {
-    var res = await http.delete(Uri.parse('$baseUrl/api$path'), headers: _headers);      if (res.statusCode == 401) {
+    final base = _requireBaseUrl();
+    var res = await http.delete(Uri.parse('$base/api$path'), headers: _headers);      if (res.statusCode == 401) {
         if (await tryRefreshToken()) {
-          res = await http.delete(Uri.parse('$baseUrl/api$path'), headers: _headers);
+          res = await http.delete(Uri.parse('$base/api$path'), headers: _headers);
         }
       }
     if (res.statusCode >= 400) throw Exception('API error: ${res.statusCode}');
@@ -195,9 +292,10 @@ class ApiService extends ChangeNotifier {
   Future<bool> tryRefreshToken() async {
     final refreshToken = await _storage.read(key: _refreshTokenKey);
     if (refreshToken == null) return false;
+    final base = _requireBaseUrl();
     try {
       final res = await http.post(
-        Uri.parse('$baseUrl/api/auth/refresh'),
+        Uri.parse('$base/api/auth/refresh'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'refreshToken': refreshToken}),
       );
@@ -219,10 +317,12 @@ class ApiService extends ChangeNotifier {
 
   void connectWebSocket() {
     if (_token == null || _isConnecting || _isConnected) return;
+    final base = _baseUrl;
+    if (base == null || base.isEmpty) return;
     _isConnecting = true;
 
     try {
-      final wsUrl = baseUrl.replaceFirst('http://', 'ws://');
+      final wsUrl = base.replaceFirst('http://', 'ws://');
       debugPrint('[WebSocket] Connecting to: $wsUrl/ws');
       _wsChannel = WebSocketChannel.connect(Uri.parse('$wsUrl/ws?token=$_token'));
       _wsSubscription = _wsChannel!.stream.listen(

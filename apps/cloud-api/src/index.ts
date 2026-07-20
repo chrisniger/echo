@@ -145,6 +145,12 @@ app.post('/api/settings/mdns', requireAuth, (req, res) => {
   res.json({ enabled: mdnsEnabled });
 });
 
+if (!config.aiGatewayApiKey) {
+  console.warn(
+    '[Echo Cloud API] AI_GATEWAY_API_KEY is not set. Server-to-server calls to the AI Gateway will be rejected unless you configure a shared key.',
+  );
+}
+
 server.listen(config.PORT, '0.0.0.0', () => {
   console.log(`[Echo Cloud API] Server running on http://0.0.0.0:${config.PORT}`);
   console.log(`[Echo Cloud API] WebSocket available at ws://0.0.0.0:${config.PORT}/ws`);

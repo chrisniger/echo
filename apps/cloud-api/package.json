@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "pnpm --filter @echo-gpt/shared-types build",
     "dev": "tsx watch src/index.ts",
+    "prebuild": "pnpm --filter @echo-gpt/shared-types build",
     "build": "tsc",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",

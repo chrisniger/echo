@@ -10,9 +10,21 @@ const TAURI_ORIGINS = [
   'http://localhost:1420',
 ];
 
+// Native mobile apps don't enforce CORS, but include common Flutter dev
+// ports and the wildcard app:// origin for completeness / web builds.
+const MOBILE_ORIGINS = [
+  'app://localhost',
+  'http://localhost:8081',
+  'http://localhost:3000',
+  'capacitor://localhost',
+];
+
 function parseCorsOrigins(raw: string): string[] {
-  const list = raw.split(',').map((s) => s.trim()).filter(Boolean);
-  for (const origin of TAURI_ORIGINS) {
+  const list = raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  for (const origin of [...TAURI_ORIGINS, ...MOBILE_ORIGINS]) {
     if (!list.includes(origin)) list.push(origin);
   }
   return list;
@@ -27,5 +39,7 @@ export const config = {
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || JWT.DEFAULT_ACCESS_EXPIRES_IN,
   JWT_REFRESH_EXPIRES_IN: process.env.JWT_REFRESH_EXPIRES_IN || JWT.DEFAULT_REFRESH_EXPIRES_IN,
   DB_PATH: process.env.DB_PATH || './data/echo-gpt.db',
+  // API key used for server-to-server calls to the AI Gateway.
+  aiGatewayApiKey: process.env.AI_GATEWAY_API_KEY || '',
   CORS_ORIGIN,
 };

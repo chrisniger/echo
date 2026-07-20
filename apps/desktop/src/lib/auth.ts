@@ -27,7 +27,10 @@ export function clearTokens(): void {
 export function isTokenExpired(): boolean {
   const expiresAt = localStorage.getItem(EXPIRES_AT_KEY);
   if (!expiresAt) return true;
-  return Date.now() > Number(expiresAt);
+  // Treat the token as expired a few seconds before the actual expiry so we
+  // never send a request that the server is about to reject. This also gives
+  // the background refresh a small safety margin against clock skew.
+  return Date.now() > Number(expiresAt) - 5000;
 }
 
 export function getExpiresAt(): number {

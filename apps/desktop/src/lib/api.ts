@@ -1,4 +1,4 @@
-import { getAccessToken, getRefreshToken, storeTokens, clearTokens, isTokenExpired } from './auth';
+import { getAccessToken, getRefreshToken, storeTokens, isTokenExpired } from './auth';
 
 const CLOUD_BASE_URL = import.meta.env.VITE_CLOUD_API_URL || 'http://localhost:4000/api';
 const GATEWAY_BASE_URL = import.meta.env.VITE_GATEWAY_API_URL || 'http://localhost:4001/api';
@@ -19,6 +19,72 @@ function notifyAuthRefreshed() {
     } catch {
       /* ignore */
     }
+  }
+}
+
+export interface RefreshAuthResult {
+  success: boolean;
+  isDead: boolean;
+}
+
+let activeRefreshPromise: Promise<RefreshAuthResult> | null = null;
+
+/**
+ * Refresh the access token using the stored refresh token.
+ *
+ * Single-flight: concurrent callers share the same in-flight promise so the
+ * refresh token is only consumed once. This prevents race conditions where
+ * multiple API calls hit 401 simultaneously and each tries to rotate the same
+ * single-use refresh token, leaving the others with a rejected session.
+ */
+export async function refreshAuthToken(): Promise<RefreshAuthResult> {
+  if (activeRefreshPromise) {
+    return activeRefreshPromise;
+  }
+
+  activeRefreshPromise = (async (): Promise<RefreshAuthResult> => {
+    const refreshToken = getRefreshToken();
+    if (!refreshToken) {
+      return { success: false, isDead: true };
+    }
+
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 10_000);
+
+    try {
+      const res = await fetch(`${CLOUD_BASE_URL}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+        signal: controller.signal,
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        storeTokens(data.tokens);
+        notifyAuthRefreshed();
+        return { success: true, isDead: false };
+      }
+
+      if (res.status === 401) {
+        // Refresh token itself is invalid/expired.
+        return { success: false, isDead: true };
+      }
+
+      // Transient server error — don't treat the session as dead.
+      return { success: false, isDead: false };
+    } catch {
+      // Network blip — caller can retry later.
+      return { success: false, isDead: false };
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
+  })();
+
+  try {
+    return await activeRefreshPromise;
+  } finally {
+    activeRefreshPromise = null;
   }
 }
 
@@ -49,34 +115,6 @@ class ApiClient {
     return url.toString();
   }
 
-  private async refreshAuth(): Promise<boolean> {
-    const refreshToken = getRefreshToken();
-    if (!refreshToken) return false;
-
-    const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => controller.abort(), 10_000);
-
-    try {
-      const res = await fetch(`${CLOUD_BASE_URL}/auth/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refreshToken }),
-        signal: controller.signal,
-      });
-
-      if (!res.ok) return false;
-
-      const data = await res.json();
-      storeTokens(data.tokens);
-      notifyAuthRefreshed();
-      return true;
-    } catch {
-      return false;
-    } finally {
-      window.clearTimeout(timeoutId);
-    }
-  }
-
   private async request<T>(
     path: string,
     options: RequestOptions = {},
@@ -86,11 +124,7 @@ class ApiClient {
 
     // Proactively refresh if we know the access token is expired (saves a 401 round-trip)
     if (!isRetry && isTokenExpired() && getRefreshToken()) {
-      const ok = await this.refreshAuth();
-      if (!ok) {
-        // Refresh failed — let the request try once with the stale token; if the
-        // server rejects it, we'll handle 401 below.
-      }
+      await refreshAuthToken();
     }
 
     const accessToken = getAccessToken();
@@ -122,8 +156,8 @@ class ApiClient {
       });
 
       if (response.status === 401 && !isRetry) {
-        const refreshed = await this.refreshAuth();
-        if (refreshed) {
+        const refreshed = await refreshAuthToken();
+        if (refreshed.success) {
           return this.request<T>(path, options, true);
         }
         // Refresh failed: surface the error so the caller can decide. Do NOT

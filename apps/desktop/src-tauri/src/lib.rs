@@ -22,6 +22,13 @@ fn get_app_version() -> String {
 }
 
 #[tauri::command]
+fn get_local_ip() -> Result<String, String> {
+    local_ip_address::local_ip()
+        .map(|ip| ip.to_string())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn list_audio_devices() -> Vec<audio::AudioDevice> {
     AudioCapture::list_devices()
 }
@@ -106,7 +113,11 @@ fn get_audio_buffer(state: tauri::State<AppState>) -> Result<Vec<f32>, String> {
 }
 
 #[tauri::command]
-async fn transcribe_audio(state: tauri::State<'_, AppState>, gateway_url: Option<String>) -> Result<whisper::TranscriptionResult, String> {
+async fn transcribe_audio(
+    state: tauri::State<'_, AppState>,
+    gateway_url: Option<String>,
+    access_token: Option<String>,
+) -> Result<whisper::TranscriptionResult, String> {
     let (audio_data, sample_rate) = {
         let capture = state.audio.lock().map_err(|e| e.to_string())?;
         let data = capture.get_buffered_audio()?;
@@ -138,7 +149,7 @@ async fn transcribe_audio(state: tauri::State<'_, AppState>, gateway_url: Option
     }
 
     let url = gateway_url.unwrap_or_else(|| "http://localhost:4001".into());
-    transcribe::transcribe_via_gateway(&audio_data, sample_rate, &url, None).await
+    transcribe::transcribe_via_gateway(&audio_data, sample_rate, &url, None, access_token.as_deref()).await
 }
 
 #[tauri::command]
@@ -226,6 +237,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_app_version,
+            get_local_ip,
             list_audio_devices,
             audio_preflight,
             start_mic_capture,

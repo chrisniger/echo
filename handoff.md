@@ -1870,3 +1870,40 @@ This section reflects the live repository as of 2026-07-18. `apps/BACK_desktop_b
 
 - Existing sessions (created before this update) have `cv_content = NULL` and `documents_content = NULL`. `Session.cvContent?`, `Session.documents?` are both optional, and `ContextAssembler` skips empty sections. No migration of historical sessions is required.
 - `useCvStore.uploadCv`'s public signature changed from `Promise<void>` to `Promise<CvDocument | null>`. Anyone still using `void` (e.g. `CvLibrary`'s upload button) continues to compile — `void` is structurally compatible.
+
+## U16 - AI Gateway authentication
+
+### Summary
+
+Protected all AI Gateway endpoints (except health) with a dual authentication middleware that accepts either a valid JWT access token or a shared API key. Updated the desktop Tauri backend and the Cloud API gateway client to send credentials so transcription, chat, embeddings, CV parsing, image analysis, and classifier routes remain usable.
+
+### Files changed
+
+- `apps/ai-gateway/src/middleware/auth.ts` — new `requireAuth` middleware; validates `X-API-Key` header first, then falls back to `Authorization: Bearer <jwt>` verification using `JWT_SECRET`.
+- `apps/ai-gateway/src/config.ts` — loads `JWT_SECRET` and `AI_GATEWAY_API_KEY` from environment variables.
+- `apps/ai-gateway/src/index.ts` — mounts `requireAuth` before every `/api` router except the health router; logs a warning when `AI_GATEWAY_API_KEY` is not configured.
+- `apps/ai-gateway/src/routes/chat.ts` — removed the now-redundant `router.use(requireAuth)` call.
+- `apps/ai-gateway/package.json` — added `jsonwebtoken` dependency.
+- `apps/ai-gateway/.env.example` — documented `JWT_SECRET` and `AI_GATEWAY_API_KEY`.
+- `apps/desktop/src-tauri/src/transcribe.rs` — accepts an optional `access_token` and sends it in the `Authorization` header when calling `/api/transcribe`.
+- `apps/desktop/src-tauri/src/lib.rs` — `transcribe_audio` command now accepts `access_token: Option<String>`.
+- `apps/desktop/src/hooks/useSessionBackground.ts` — passes the current access token to the `transcribe_audio` Tauri command.
+- `apps/desktop/src/services/audio.ts` — passes the current access token to the `transcribe_audio` Tauri command.
+- `apps/cloud-api/src/services/gateway-client.ts` — sends `X-API-Key` header when `AI_GATEWAY_API_KEY` is configured.
+- `apps/cloud-api/src/config.ts` — loads `AI_GATEWAY_API_KEY` from environment variables.
+- `apps/cloud-api/src/index.ts` — logs a warning when `AI_GATEWAY_API_KEY` is not configured.
+
+### Validation
+
+- AI Gateway typecheck passes.
+- AI Gateway lint reports only pre-existing warnings.
+- Cloud API typecheck passes.
+- Desktop typecheck passes.
+- `cargo check` for the Tauri backend passes.
+
+### Notes
+
+- The health endpoint (`/api/health`) remains unauthenticated so load balancers and Docker health checks can reach it.
+- Server-to-server calls from Cloud API to AI Gateway use the shared API key.
+- Desktop-to-AI-Gateway calls (transcription) now use the user's JWT access token.
+- Both `AI_GATEWAY_API_KEY` and `JWT_SECRET` must be set consistently across Cloud API and AI Gateway environments.

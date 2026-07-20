@@ -3,13 +3,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from './stores/auth';
 import { useWebSocket } from './hooks/useWebSocket';
-import {
-  getAccessToken,
-  getRefreshToken,
-  getExpiresAt,
-  isTokenExpired,
-  storeTokens,
-} from './lib/auth';
+import { getAccessToken, getRefreshToken, getExpiresAt, isTokenExpired } from './lib/auth';
+import { refreshAuthToken } from './lib/api';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
@@ -75,10 +70,11 @@ export default function App() {
 
   // Background token refresh: refresh the access token ~60s before it expires
   // so the user is never kicked out while actively using the app. We use a
-  // polling interval rather than a single setTimeout so the timer survives
-  // system sleep/idle and always recalculates the remaining time.
+  // recursive setTimeout so the timer survives system sleep/idle and the poll
+  // interval can speed up when the token is near expiry or already expired.
   useEffect(() => {
-    let interval: number | null = null;
+    let timeout: number | null = null;
+    let stopped = false;
 
     const tryRefresh = async () => {
       const refreshToken = getRefreshToken();
@@ -91,52 +87,53 @@ export default function App() {
       // Only refresh if the token is close to expiring or already expired
       if (expiresAt - now > refreshThreshold) return;
 
-      const controller = new AbortController();
-      const timeoutId = window.setTimeout(() => controller.abort(), 10_000);
-
-      try {
-        const cloudBase = (import.meta.env.VITE_CLOUD_API_URL as string | undefined) || '';
-        const url = `${cloudBase.replace(/\/+$/, '')}/auth/refresh`;
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refreshToken }),
-          signal: controller.signal,
-        });
-        if (res.ok) {
-          const data = await res.json();
-          storeTokens(data.tokens);
-          try {
-            await useAuthStore.getState().fetchMe();
-          } catch {
-            /* tolerate transient errors */
-          }
-        } else if (res.status === 401) {
-          // Refresh token itself is dead — sign the user out. The interval
-          // will be torn down automatically by the effect cleanup.
-          useAuthStore.getState().logout();
+      const result = await refreshAuthToken();
+      if (result.success) {
+        try {
+          await useAuthStore.getState().fetchMe();
+        } catch {
+          /* tolerate transient errors */
         }
-      } catch {
-        /* network blip, retry on next interval */
-      } finally {
-        window.clearTimeout(timeoutId);
+      } else if (result.isDead) {
+        // Refresh token itself is dead — sign the user out. The timeout
+        // will be torn down automatically by the effect cleanup.
+        useAuthStore.getState().logout();
       }
     };
 
+    const scheduleNext = () => {
+      if (stopped) return;
+
+      const refreshToken = getRefreshToken();
+      if (!refreshToken) return;
+
+      const expiresAt = getExpiresAt();
+      const now = Date.now();
+      const refreshThreshold = 60_000;
+      const needsRefresh = expiresAt - now <= refreshThreshold;
+
+      // Poll more frequently when the token is expired or close to expiry so
+      // a transient network failure doesn't leave the user stale for long.
+      const delay = needsRefresh ? 5_000 : 30_000;
+
+      timeout = window.setTimeout(() => {
+        void tryRefresh().then(scheduleNext);
+      }, delay);
+    };
+
     if (getRefreshToken()) {
-      // Refresh immediately if already expired at app start
+      // Refresh immediately if already expired at app start, then schedule
+      // the next check based on the updated token lifetime.
       if (isTokenExpired()) {
-        void tryRefresh();
+        void tryRefresh().then(scheduleNext);
+      } else {
+        scheduleNext();
       }
-      // Poll every 30s so the refresh decision is always based on the
-      // current token lifetime (survives sleep/idle).
-      interval = window.setInterval(() => {
-        void tryRefresh();
-      }, 30_000);
     }
 
     return () => {
-      if (interval) clearInterval(interval);
+      stopped = true;
+      if (timeout) clearTimeout(timeout);
     };
   }, [authBootstrapped, isAuthenticated]);
 

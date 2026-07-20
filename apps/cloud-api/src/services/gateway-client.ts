@@ -1,3 +1,5 @@
+import { config } from '../config.js';
+
 const GATEWAY_BASE_URL = process.env.AI_GATEWAY_URL || 'http://localhost:4001';
 
 class GatewayClient {
@@ -7,12 +9,20 @@ class GatewayClient {
     this.baseUrl = baseUrl;
   }
 
+  private headers(): Record<string, string> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (config.aiGatewayApiKey) {
+      headers['X-API-Key'] = config.aiGatewayApiKey;
+    }
+    return headers;
+  }
+
   async post<T>(path: string, body: any): Promise<T> {
     const response = await fetch(`${this.baseUrl}${path}`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: this.headers(),
       body: JSON.stringify(body),
     });
 
@@ -26,9 +36,7 @@ class GatewayClient {
   async get<T>(path: string): Promise<T> {
     const response = await fetch(`${this.baseUrl}${path}`, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: this.headers(),
     });
 
     if (!response.ok) {

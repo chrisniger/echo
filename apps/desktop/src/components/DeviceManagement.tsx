@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { Monitor, Smartphone, Trash2, Edit3, Check, X, RefreshCw, Copy, Link } from 'lucide-react';
 import QRCode from 'qrcode';
 import { usePairingStore, type PairedDevice } from '../stores/pairing';
@@ -51,16 +52,35 @@ export function DeviceManagement() {
       setQrDataUrl(null);
       return;
     }
-    const cloudBase = import.meta.env.VITE_CLOUD_API_URL as string | undefined;
-    const payloadMap: Record<string, string> = { code: activeCode.code };
-    if (cloudBase) {
-      payloadMap.serverUrl = cloudBase.replace(/\/$/, '');
-    }
-    const payload = JSON.stringify(payloadMap);
+
     let cancelled = false;
-    QRCode.toDataURL(payload, { width: 240, margin: 2 }).then((url) => {
+    const buildPayload = async () => {
+      const cloudBase = import.meta.env.VITE_CLOUD_API_URL as string | undefined;
+      const payloadMap: Record<string, string> = { code: activeCode.code };
+
+      if (cloudBase && !cloudBase.includes('localhost') && !cloudBase.includes('127.0.0.1')) {
+        payloadMap.serverUrl = cloudBase.replace(/\/$/, '');
+      } else {
+        // The desktop is running against a localhost Cloud API, but phones
+        // cannot reach localhost on the PC. Ask Tauri for the real LAN IP so
+        // the companion can connect to the same machine.
+        try {
+          const localIp = await invoke<string>('get_local_ip');
+          const portMatch = cloudBase?.match(/:(\d+)/);
+          const port = portMatch ? portMatch[1] : '4000';
+          payloadMap.serverUrl = `http://${localIp}:${port}`;
+        } catch {
+          // If we cannot determine the LAN IP, omit serverUrl and let the
+          // companion discover the server with network discovery.
+        }
+      }
+
+      const payload = JSON.stringify(payloadMap);
+      const url = await QRCode.toDataURL(payload, { width: 240, margin: 2 });
       if (!cancelled) setQrDataUrl(url);
-    });
+    };
+
+    buildPayload();
     return () => {
       cancelled = true;
     };

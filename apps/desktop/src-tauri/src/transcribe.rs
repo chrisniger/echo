@@ -42,6 +42,7 @@ pub async fn transcribe_via_gateway(
     sample_rate: u32,
     gateway_url: &str,
     language: Option<&str>,
+    access_token: Option<&str>,
 ) -> Result<TranscriptionResult, String> {
     let audio_bytes = encode_wav(audio_data, sample_rate);
 
@@ -60,12 +61,15 @@ pub async fn transcribe_via_gateway(
         payload["language"] = serde_json::Value::String(lang.to_string());
     }
 
-    let response = client
+    let mut request = client
         .post(format!("{}/api/transcribe", gateway_url))
-        .json(&payload)
-        .send()
-        .await
-        .map_err(|e| format!("Gateway request failed: {}", e))?;
+        .json(&payload);
+
+    if let Some(token) = access_token {
+        request = request.header("Authorization", format!("Bearer {}", token));
+    }
+
+    let response = request.send().await.map_err(|e| format!("Gateway request failed: {}", e))?;
 
     if !response.status().is_success() {
         let status = response.status();
