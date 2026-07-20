@@ -1,6 +1,11 @@
 import { create } from 'zustand';
-import type { AuthResponse, UserProfile, LoginRequest, RegisterRequest } from '@echo-gpt/shared-types';
-import { api } from '../lib/api';
+import type {
+  AuthResponse,
+  UserProfile,
+  LoginRequest,
+  RegisterRequest,
+} from '@echo-gpt/shared-types';
+import { api, ApiError } from '../lib/api';
 import { storeTokens, clearTokens } from '../lib/auth';
 
 interface AuthState {
@@ -55,9 +60,15 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const res = await api.get<{ user: UserProfile }>('/auth/me');
       set({ user: res.user, isAuthenticated: true, isLoading: false });
-    } catch {
-      clearTokens();
-      set({ user: null, isAuthenticated: false, isLoading: false });
+    } catch (error) {
+      // Only clear auth state when the server explicitly rejects the
+      // session. Transient network/server errors should not log the user out.
+      if (error instanceof ApiError && error.status === 401) {
+        clearTokens();
+        set({ user: null, isAuthenticated: false, isLoading: false });
+      } else {
+        set({ isLoading: false });
+      }
     }
   },
 

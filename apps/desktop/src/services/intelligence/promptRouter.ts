@@ -1,4 +1,4 @@
-import type { QuestionCategory } from './types';
+import type { QuestionCategory, SessionMode } from './types';
 import { SESSION_TYPE_PROMPTS, type SessionType } from '@echo-gpt/shared-types';
 
 /**
@@ -195,7 +195,7 @@ export interface SessionTypeTemplate {
   system: string;
   /** Initial session mode seed handed to the question-detection engine so the
    *  classifier trusts the user's declaration on segment 1. */
-  initialSessionMode: import('./types').SessionMode;
+  initialSessionMode: SessionMode;
 }
 
 const SESSION_TYPE_SEEDS: Record<SessionType, SessionTypeTemplate> = {
@@ -240,13 +240,15 @@ const SESSION_TYPE_SEEDS: Record<SessionType, SessionTypeTemplate> = {
 /** Get the opening role directive for a user-declared session type. */
 export function getSessionTypePrompt(type: SessionType | undefined): PromptTemplate {
   return {
-    system: type ? (SESSION_TYPE_PROMPTS[type] ?? SESSION_TYPE_PROMPTS.General) : SESSION_TYPE_PROMPTS.General,
+    system: type
+      ? (SESSION_TYPE_PROMPTS[type] ?? SESSION_TYPE_PROMPTS.General)
+      : SESSION_TYPE_PROMPTS.General,
     formatHint: 'Session-type opening directive',
   };
 }
 
 /** Get the initial SessionMode to seed the detection engine for this type. */
-export function getSessionTypeSeed(type: SessionType | undefined): import('./types').SessionMode {
+export function getSessionTypeSeed(type: SessionType | undefined): SessionMode {
   if (!type) return 'Unknown';
   return SESSION_TYPE_SEEDS[type]?.initialSessionMode ?? 'Unknown';
 }

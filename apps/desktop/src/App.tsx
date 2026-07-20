@@ -78,17 +78,34 @@ export default function App() {
 
     const tryRefresh = async () => {
       const refreshToken = getRefreshToken();
-      if (!refreshToken) return;
+      if (!refreshToken) {
+        console.log('[Auth] background-refresh: no refresh token available');
+        return;
+      }
 
       const expiresAt = getExpiresAt();
       const now = Date.now();
       const refreshThreshold = 60_000; // refresh 60s before expiry
 
       // Only refresh if the token is close to expiring or already expired
-      if (expiresAt - now > refreshThreshold) return;
+      if (expiresAt - now > refreshThreshold) {
+        console.log('[Auth] background-refresh: token still fresh, skipping', {
+          expiresAt,
+          now,
+          diffMs: expiresAt - now,
+        });
+        return;
+      }
+
+      console.log('[Auth] background-refresh: refreshing token', {
+        expiresAt,
+        now,
+        diffMs: expiresAt - now,
+      });
 
       const result = await refreshAuthToken();
       if (result.success) {
+        console.log('[Auth] background-refresh: token refreshed successfully');
         try {
           await useAuthStore.getState().fetchMe();
         } catch {
@@ -97,7 +114,10 @@ export default function App() {
       } else if (result.isDead) {
         // Refresh token itself is dead — sign the user out. The timeout
         // will be torn down automatically by the effect cleanup.
+        console.error('[Auth] background-refresh: refresh token is dead, logging out');
         useAuthStore.getState().logout();
+      } else {
+        console.warn('[Auth] background-refresh: refresh failed transiently, will retry');
       }
     };
 
@@ -105,7 +125,10 @@ export default function App() {
       if (stopped) return;
 
       const refreshToken = getRefreshToken();
-      if (!refreshToken) return;
+      if (!refreshToken) {
+        console.log('[Auth] background-refresh: no refresh token, stopping scheduler');
+        return;
+      }
 
       const expiresAt = getExpiresAt();
       const now = Date.now();
@@ -116,6 +139,11 @@ export default function App() {
       // a transient network failure doesn't leave the user stale for long.
       const delay = needsRefresh ? 5_000 : 30_000;
 
+      console.log('[Auth] background-refresh: scheduling next check', {
+        delayMs: delay,
+        needsRefresh,
+      });
+
       timeout = window.setTimeout(() => {
         void tryRefresh().then(scheduleNext);
       }, delay);
@@ -125,10 +153,15 @@ export default function App() {
       // Refresh immediately if already expired at app start, then schedule
       // the next check based on the updated token lifetime.
       if (isTokenExpired()) {
+        console.log(
+          '[Auth] background-refresh: token expired at app start, refreshing immediately',
+        );
         void tryRefresh().then(scheduleNext);
       } else {
         scheduleNext();
       }
+    } else {
+      console.log('[Auth] background-refresh: no refresh token at app start');
     }
 
     return () => {

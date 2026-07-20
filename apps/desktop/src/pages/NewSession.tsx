@@ -11,7 +11,13 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Switch } from '../components/ui/switch';
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../components/ui/select';
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '../components/ui/select';
 import { Card, CardContent } from '../components/ui/card';
 
 const aiModels = [
@@ -84,10 +90,12 @@ export default function NewSession() {
   const endSession = useSessionStore((s) => s.endSession);
 
   const [name, setName] = useState('');
-  const [sessionType, setSessionType] = useState<SessionType>('General');
+  const [sessionType, setSessionType] = useState<SessionType>('Interview');
   const [context, setContext] = useState('');
   const [aiModel, setAiModel] = useState(defaultSettings.defaultAiModel);
-  const [responseStyle, setResponseStyle] = useState<ResponseStyle>(defaultSettings.defaultResponseStyle);
+  const [responseStyle, setResponseStyle] = useState<ResponseStyle>(
+    defaultSettings.defaultResponseStyle,
+  );
   const [recordSession, setRecordSession] = useState(true);
   const [enableTranscript, setEnableTranscript] = useState(true);
   const [transcriptionIntervalMs, setTranscriptionIntervalMs] = useState(5000);
@@ -96,6 +104,7 @@ export default function NewSession() {
   );
   const [language, setLanguage] = useState<Language>(defaultSettings.language as Language);
   const [cvFile, setCvFile] = useState<File | null>(null);
+  const [selectedCvId, setSelectedCvId] = useState<string | null>(null);
   const [additionalDocs, setAdditionalDocs] = useState<File[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -106,6 +115,14 @@ export default function NewSession() {
   } | null>(null);
   const cvInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
+
+  const cvList = useCvStore((s) => s.cvList);
+
+  // Load the user's existing CVs so the Documents card can offer a
+  // "select from library" option alongside the upload zone.
+  useEffect(() => {
+    void useCvStore.getState().fetchCvs();
+  }, []);
 
   // Refresh sessions list on mount so we can detect an active session the
   // user may have started on another desktop window.
@@ -133,12 +150,21 @@ export default function NewSession() {
     const file = e.dataTransfer.files[0];
     if (file && (file.type === 'application/pdf' || file.type.includes('text'))) {
       setCvFile(file);
+      setSelectedCvId(null);
     }
   }, []);
 
   const handleCvSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) setCvFile(file);
+    if (file) {
+      setCvFile(file);
+      setSelectedCvId(null);
+    }
+  };
+
+  const handleExistingCvSelect = (cvId: string) => {
+    setSelectedCvId(cvId);
+    setCvFile(null);
   };
 
   const handleDocsSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -186,8 +212,11 @@ export default function NewSession() {
         if (uploaded) {
           cvId = uploaded.id;
         } else {
-          cvUploadError = 'CV upload was rejected by the server. Check the file type (PDF / DOCX / TXT / Markdown) and size (≤10 MB).';
+          cvUploadError =
+            'CV upload was rejected by the server. Check the file type (PDF / DOCX / TXT / Markdown) and size (≤10 MB).';
         }
+      } else if (selectedCvId) {
+        cvId = selectedCvId;
       }
 
       // Upload each additional document. We reuse /cv/upload because the
@@ -240,23 +269,17 @@ export default function NewSession() {
               <div>
                 <p className="font-medium text-zinc-100">Another session is currently active</p>
                 <p className="text-sm text-zinc-400 mt-1">
-                  "<span className="text-zinc-200">{activeSessionGuard.name}</span>" is still capturing audio. Only one session can run at a time, so please end it before starting a new one.
+                  "<span className="text-zinc-200">{activeSessionGuard.name}</span>" is still
+                  capturing audio. Only one session can run at a time, so please end it before
+                  starting a new one.
                 </p>
               </div>
             </div>
             <div className="flex gap-2">
-              <Button
-                variant="destructive"
-                onClick={handleActiveSessionFound}
-                disabled={isLoading}
-              >
+              <Button variant="destructive" onClick={handleActiveSessionFound} disabled={isLoading}>
                 {isLoading ? 'Ending…' : 'End current session'}
               </Button>
-              <Button
-                variant="outline"
-                onClick={handleDismissGuard}
-                disabled={isLoading}
-              >
+              <Button variant="outline" onClick={handleDismissGuard} disabled={isLoading}>
                 Go to existing session
               </Button>
               <Button
@@ -290,13 +313,13 @@ export default function NewSession() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Briefcase className="h-4 w-4 text-indigo-400" />
-                <Label>Session Type <span className="text-red-400">*</span></Label>
+                <Label>
+                  Session Type <span className="text-red-400">*</span>
+                </Label>
               </div>
               <p className="text-xs text-zinc-500">Tells the AI what to expect</p>
             </div>
-            <p className="text-xs text-zinc-500 -mt-1">
-              {sessionTypeDescriptions[sessionType]}
-            </p>
+            <p className="text-xs text-zinc-500 -mt-1">{sessionTypeDescriptions[sessionType]}</p>
             <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
               {SESSION_TYPES.map((t) => {
                 const selected = sessionType === t;
@@ -319,7 +342,9 @@ export default function NewSession() {
                       aria-label={t}
                     />
                     <div className="min-w-0">
-                      <div className={`text-sm font-medium ${selected ? 'text-indigo-100' : 'text-zinc-100'}`}>
+                      <div
+                        className={`text-sm font-medium ${selected ? 'text-indigo-100' : 'text-zinc-100'}`}
+                      >
                         {t}
                       </div>
                     </div>
@@ -344,45 +369,97 @@ export default function NewSession() {
 
           <div className="space-y-1.5">
             <Label>CV / Resume</Label>
-            <div
-              className={`flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 transition-colors ${
-                isDragOver ? 'border-indigo-500 bg-indigo-500/10' : 'border-zinc-700 hover:border-zinc-600'
-              }`}
-              onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
-              onDragLeave={() => setIsDragOver(false)}
-              onDrop={handleCvDrop}
-              onClick={() => cvInputRef.current?.click()}
-            >
-              <input
-                ref={cvInputRef}
-                type="file"
-                accept=".pdf,.doc,.docx,.txt"
-                className="hidden"
-                onChange={handleCvSelect}
-              />
-              {cvFile ? (
-                <div className="flex items-center gap-3">
-                  <FileText className="h-8 w-8 text-indigo-500" />
-                  <div>
-                    <p className="text-sm font-medium text-zinc-100">{cvFile.name}</p>
-                    <p className="text-xs text-zinc-500">{(cvFile.size / 1024).toFixed(1)} KB</p>
+            {cvList.length > 0 && (
+              <div className="space-y-2">
+                <Select
+                  value={selectedCvId || 'upload-new'}
+                  onValueChange={(value) =>
+                    value === 'upload-new' ? setSelectedCvId(null) : handleExistingCvSelect(value)
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="upload-new">Upload a new CV / Resume</SelectItem>
+                    {cvList.map((cv) => (
+                      <SelectItem key={cv.id} value={cv.id}>
+                        {cv.name} {cv.isDefault && '(default)'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-zinc-500">
+                  Choose an existing CV or upload a new one for this session.
+                </p>
+              </div>
+            )}
+
+            {(!selectedCvId || cvList.length === 0) && (
+              <div
+                className={`flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 transition-colors ${
+                  isDragOver
+                    ? 'border-indigo-500 bg-indigo-500/10'
+                    : 'border-zinc-700 hover:border-zinc-600'
+                }`}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setIsDragOver(true);
+                }}
+                onDragLeave={() => setIsDragOver(false)}
+                onDrop={handleCvDrop}
+                onClick={() => cvInputRef.current?.click()}
+              >
+                <input
+                  ref={cvInputRef}
+                  type="file"
+                  accept=".pdf,.doc,.docx,.txt"
+                  className="hidden"
+                  onChange={handleCvSelect}
+                />
+                {cvFile ? (
+                  <div className="flex items-center gap-3">
+                    <FileText className="h-8 w-8 text-indigo-500" />
+                    <div>
+                      <p className="text-sm font-medium text-zinc-100">{cvFile.name}</p>
+                      <p className="text-xs text-zinc-500">{(cvFile.size / 1024).toFixed(1)} KB</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCvFile(null);
+                      }}
+                      className="rounded-full p-1 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); setCvFile(null); }}
-                    className="rounded-full p-1 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <Upload className="mb-2 h-8 w-8 text-zinc-500" />
-                  <p className="text-sm text-zinc-400">Drop your CV here or click to browse</p>
-                  <p className="mt-1 text-xs text-zinc-600">PDF, DOC, DOCX, TXT</p>
-                </>
-              )}
-            </div>
+                ) : (
+                  <>
+                    <Upload className="mb-2 h-8 w-8 text-zinc-500" />
+                    <p className="text-sm text-zinc-400">Drop your CV here or click to browse</p>
+                    <p className="mt-1 text-xs text-zinc-600">PDF, DOC, DOCX, TXT</p>
+                  </>
+                )}
+              </div>
+            )}
+
+            {selectedCvId && (
+              <div className="flex items-center gap-2 rounded-md bg-zinc-800 px-3 py-2">
+                <FileText className="h-4 w-4 text-indigo-400" />
+                <span className="flex-1 text-sm text-zinc-200 truncate">
+                  {cvList.find((cv) => cv.id === selectedCvId)?.name}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedCvId(null)}
+                  className="rounded-full p-1 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="space-y-1.5">
@@ -433,7 +510,9 @@ export default function NewSession() {
               </SelectTrigger>
               <SelectContent>
                 {aiModels.map((m) => (
-                  <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                  <SelectItem key={m.value} value={m.value}>
+                    {m.label}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -441,13 +520,18 @@ export default function NewSession() {
 
           <div className="space-y-1.5">
             <Label>Response Style</Label>
-            <Select value={responseStyle} onValueChange={(v) => setResponseStyle(v as ResponseStyle)}>
+            <Select
+              value={responseStyle}
+              onValueChange={(v) => setResponseStyle(v as ResponseStyle)}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {responseStyles.map((s) => (
-                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                  <SelectItem key={s.value} value={s.value}>
+                    {s.label}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -507,7 +591,9 @@ export default function NewSession() {
               </SelectTrigger>
               <SelectContent>
                 {audioSources.map((s) => (
-                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                  <SelectItem key={s.value} value={s.value}>
+                    {s.label}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -521,7 +607,9 @@ export default function NewSession() {
               </SelectTrigger>
               <SelectContent>
                 {languages.map((l) => (
-                  <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>
+                  <SelectItem key={l.value} value={l.value}>
+                    {l.label}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>

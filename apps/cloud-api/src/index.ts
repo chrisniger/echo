@@ -21,6 +21,7 @@ import { createBillingRouter } from './routes/billing.js';
 import sessionRoutes from './routes/sessions.js';
 import { createCvRouter } from './routes/cv.js';
 import { getDb } from './db/index.js';
+import { HttpError } from './lib/errors.js';
 import { WsGateway } from './websocket/gateway.js';
 import { setWsGateway } from './websocket/gateway-singleton.js';
 
@@ -59,6 +60,12 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
   console.error('[ERROR]', err);
   if (err.name === 'ZodError') {
     res.status(400).json({ error: 'Validation error', details: (err as any).errors });
+    return;
+  }
+  if (err instanceof HttpError) {
+    const body: Record<string, unknown> = { error: err.message };
+    if (err.details !== undefined) body.details = err.details;
+    res.status(err.statusCode).json(body);
     return;
   }
   res.status(500).json({ error: err.message || 'Internal server error' });

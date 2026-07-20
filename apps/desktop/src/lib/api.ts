@@ -1,3 +1,4 @@
+import type { AuthTokens } from '@echo-gpt/shared-types';
 import { getAccessToken, getRefreshToken, storeTokens, isTokenExpired } from './auth';
 
 const CLOUD_BASE_URL = import.meta.env.VITE_CLOUD_API_URL || 'http://localhost:4000/api';
@@ -29,6 +30,34 @@ export interface RefreshAuthResult {
 
 let activeRefreshPromise: Promise<RefreshAuthResult> | null = null;
 
+interface AuthLogContext {
+  stage: 'refresh' | 'request';
+  event:
+    | 'start'
+    | 'no-refresh-token'
+    | 'success'
+    | 'refresh-dead'
+    | 'refresh-server-error'
+    | 'refresh-network-error'
+    | 'proactive-refresh'
+    | '401-received'
+    | 'retrying-after-refresh'
+    | 'transient-refresh-failure';
+  details?: Record<string, unknown>;
+}
+
+function authLog(ctx: AuthLogContext): void {
+  const prefix = '[Auth]';
+  const payload = { ...ctx, timestamp: Date.now() };
+  if (ctx.event === 'success' || ctx.event === 'retrying-after-refresh') {
+    console.log(prefix, ctx.event, payload);
+  } else if (ctx.event === 'refresh-dead') {
+    console.error(prefix, ctx.event, payload);
+  } else {
+    console.warn(prefix, ctx.event, payload);
+  }
+}
+
 /**
  * Refresh the access token using the stored refresh token.
  *
@@ -45,8 +74,11 @@ export async function refreshAuthToken(): Promise<RefreshAuthResult> {
   activeRefreshPromise = (async (): Promise<RefreshAuthResult> => {
     const refreshToken = getRefreshToken();
     if (!refreshToken) {
+      authLog({ stage: 'refresh', event: 'no-refresh-token' });
       return { success: false, isDead: true };
     }
+
+    authLog({ stage: 'refresh', event: 'start', details: { hasRefreshToken: true } });
 
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => controller.abort(), 10_000);
@@ -60,21 +92,41 @@ export async function refreshAuthToken(): Promise<RefreshAuthResult> {
       });
 
       if (res.ok) {
-        const data = await res.json();
+        const data = (await res.json()) as { tokens: AuthTokens };
         storeTokens(data.tokens);
         notifyAuthRefreshed();
+        authLog({
+          stage: 'refresh',
+          event: 'success',
+          details: { expiresAt: data.tokens.expiresAt },
+        });
         return { success: true, isDead: false };
       }
 
       if (res.status === 401) {
         // Refresh token itself is invalid/expired.
+        authLog({
+          stage: 'refresh',
+          event: 'refresh-dead',
+          details: { status: res.status, reason: 'Refresh token invalid or expired' },
+        });
         return { success: false, isDead: true };
       }
 
       // Transient server error — don't treat the session as dead.
+      authLog({
+        stage: 'refresh',
+        event: 'refresh-server-error',
+        details: { status: res.status },
+      });
       return { success: false, isDead: false };
-    } catch {
+    } catch (err) {
       // Network blip — caller can retry later.
+      authLog({
+        stage: 'refresh',
+        event: 'refresh-network-error',
+        details: { error: err instanceof Error ? err.message : String(err) },
+      });
       return { success: false, isDead: false };
     } finally {
       window.clearTimeout(timeoutId);
@@ -124,6 +176,11 @@ class ApiClient {
 
     // Proactively refresh if we know the access token is expired (saves a 401 round-trip)
     if (!isRetry && isTokenExpired() && getRefreshToken()) {
+      authLog({
+        stage: 'request',
+        event: 'proactive-refresh',
+        details: { path, isTokenExpired: true },
+      });
       await refreshAuthToken();
     }
 
@@ -156,20 +213,46 @@ class ApiClient {
       });
 
       if (response.status === 401 && !isRetry) {
+        authLog({
+          stage: 'request',
+          event: '401-received',
+          details: { path, status: response.status },
+        });
         const refreshed = await refreshAuthToken();
         if (refreshed.success) {
+          authLog({
+            stage: 'request',
+            event: 'retrying-after-refresh',
+            details: { path },
+          });
           return this.request<T>(path, options, true);
         }
-        // Refresh failed: surface the error so the caller can decide. Do NOT
-        // force a redirect to /login — the background timer in App.tsx handles
-        // logout decisions.
-        const errorBody = await response.json().catch(() => ({}));
-        throw new ApiError(401, errorBody.message || 'Session expired', errorBody);
+        if (refreshed.isDead) {
+          // Refresh token itself is invalid or expired — the session is
+          // unrecoverable. Surface the server message when available.
+          const errorBody = await response.json().catch(() => ({}));
+          const message =
+            (errorBody.error as string | undefined) ||
+            (errorBody.message as string | undefined) ||
+            'Session expired. Please sign in again.';
+          throw new ApiError(401, message, errorBody);
+        }
+        // Refresh could not complete because of a network or server error.
+        // The session may still be valid, so do not claim it expired.
+        throw new ApiError(
+          503,
+          'Could not verify your session. Please check your network and try again.',
+          {},
+        );
       }
 
       if (!response.ok) {
         const errorBody = await response.json().catch(() => ({}));
-        throw new ApiError(response.status, errorBody.message || response.statusText, errorBody);
+        const message =
+          (errorBody.error as string | undefined) ||
+          (errorBody.message as string | undefined) ||
+          response.statusText;
+        throw new ApiError(response.status, message, errorBody);
       }
 
       return response.json();

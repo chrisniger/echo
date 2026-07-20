@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
 import { config } from '../config.js';
 import { getDb } from '../db/index.js';
+import { HttpError } from '../lib/errors.js';
 import type {
   AuthTokens,
   AuthResponse,
@@ -68,6 +69,13 @@ function generateRefreshJwt(userId: string, tokenId: string): string {
   });
 }
 
+export class RefreshTokenError extends HttpError {
+  constructor(message: string) {
+    super(401, message);
+    this.name = 'RefreshTokenError';
+  }
+}
+
 function generateTokens(userId: string, deviceId?: string): AuthTokens {
   const db = getDb();
   const user = db.prepare('SELECT id, email, role FROM users WHERE id = ?').get(userId) as
@@ -105,7 +113,7 @@ export const auth = {
 
     const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(data.email);
     if (existing) {
-      throw new Error('Email already registered');
+      throw new HttpError(409, 'Email already registered');
     }
 
     db.prepare(
@@ -122,10 +130,10 @@ export const auth = {
     const db = getDb();
     const userRow = db.prepare('SELECT * FROM users WHERE email = ?').get(email) as
       UserRow | undefined;
-    if (!userRow) throw new Error('Invalid email or password');
+    if (!userRow) throw new HttpError(401, 'Invalid email or password');
 
     const valid = await bcrypt.compare(password, userRow.password);
-    if (!valid) throw new Error('Invalid email or password');
+    if (!valid) throw new HttpError(401, 'Invalid email or password');
 
     if (userRow.mfa_enabled && userRow.mfa_secret) {
       const mfaToken = jwt.sign({ userId: userRow.id }, config.JWT_SECRET, { expiresIn: '5m' });
@@ -147,7 +155,7 @@ export const auth = {
     try {
       payload = jwt.verify(token, config.JWT_SECRET) as { userId: string; tokenId: string };
     } catch {
-      throw new Error('Invalid refresh token');
+      throw new RefreshTokenError('Invalid refresh token');
     }
 
     const stored = db
@@ -155,16 +163,19 @@ export const auth = {
       .get(payload.tokenId, payload.userId) as
       { id: string; user_id: string; expires_at: string } | undefined;
 
-    if (!stored) throw new Error('Refresh token not found');
+    if (!stored) throw new RefreshTokenError('Refresh token not found');
 
     if (new Date(stored.expires_at) < new Date()) {
       db.prepare('DELETE FROM refresh_tokens WHERE id = ?').run(stored.id);
-      throw new Error('Refresh token expired');
+      throw new RefreshTokenError('Refresh token expired');
     }
 
+    // Generate new tokens BEFORE deleting the old one. If token generation
+    // fails (e.g. DB constraint or user no longer exists), the existing
+    // refresh token remains valid so the client can retry later.
+    const newTokens = generateTokens(payload.userId);
     db.prepare('DELETE FROM refresh_tokens WHERE id = ?').run(stored.id);
-
-    return generateTokens(payload.userId);
+    return newTokens;
   },
 
   async logout(userId: string, refreshToken: string): Promise<void> {
@@ -213,8 +224,8 @@ export const auth = {
       .prepare('SELECT * FROM password_resets WHERE email = ? AND token = ?')
       .get(email, token) as { expires_at: string } | undefined;
 
-    if (!row) throw new Error('Invalid reset token');
-    if (new Date(row.expires_at) < new Date()) throw new Error('Reset token expired');
+    if (!row) throw new HttpError(400, 'Invalid reset token');
+    if (new Date(row.expires_at) < new Date()) throw new HttpError(400, 'Reset token expired');
 
     const hashedPassword = await bcrypt.hash(password, 12);
     const now = new Date().toISOString();
@@ -256,17 +267,17 @@ export const auth = {
     try {
       payload = jwt.verify(mfaToken, config.JWT_SECRET) as { userId: string };
     } catch {
-      throw new Error('Invalid MFA token');
+      throw new HttpError(401, 'Invalid MFA token');
     }
 
     const db = getDb();
     const userRow = db.prepare('SELECT * FROM users WHERE id = ?').get(payload.userId) as
       UserRow | undefined;
-    if (!userRow) throw new Error('User not found');
-    if (!userRow.mfa_secret) throw new Error('MFA not configured');
+    if (!userRow) throw new HttpError(404, 'User not found');
+    if (!userRow.mfa_secret) throw new HttpError(400, 'MFA not configured');
 
     const valid = verifyTotp(userRow.mfa_secret, code);
-    if (!valid) throw new Error('Invalid MFA code');
+    if (!valid) throw new HttpError(400, 'Invalid MFA code');
 
     const tokens = generateTokens(userRow.id);
     return { user: toProfile(userRow), tokens };
