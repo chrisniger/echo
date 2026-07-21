@@ -18,6 +18,7 @@ import { createImageAnalysisRouter } from './routes/image-analysis.js';
 import { createEmbeddingRouter } from './routes/embeddings.js';
 import { createCvParserRouter } from './routes/cv-parser.js';
 import { createClassifierRouter } from './routes/classifier.js';
+import { requireAuth } from './middleware/auth.js';
 
 const app = express();
 const router = new AiRouter();
@@ -55,22 +56,28 @@ const adminRouter = createAdminRouter(router, cache);
 const transcriptionRouter = createTranscriptionRouter();
 const imageAnalysisRouter = createImageAnalysisRouter();
 const embeddingRouter = createEmbeddingRouter();
-const cvParserRouter = createCvParserRouter();
+const cvParserRouter = createCvParserRouter(router);
 const classifierRouter = createClassifierRouter();
 
 app.use('/api', healthRouter);
-app.use('/api', chatRouter);
-app.use('/api', adminRouter);
-app.use('/api', transcriptionRouter);
-app.use('/api', imageAnalysisRouter);
-app.use('/api', embeddingRouter);
-app.use('/api', cvParserRouter);
-app.use('/api', classifierRouter);
+app.use('/api', requireAuth, chatRouter);
+app.use('/api', requireAuth, adminRouter);
+app.use('/api', requireAuth, transcriptionRouter);
+app.use('/api', requireAuth, imageAnalysisRouter);
+app.use('/api', requireAuth, embeddingRouter);
+app.use('/api', requireAuth, cvParserRouter);
+app.use('/api', requireAuth, classifierRouter);
 
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('Unhandled error:', err);
   res.status(500).json({ error: 'Internal server error' });
 });
+
+if (!config.apiKey) {
+  console.warn(
+    '[AI Gateway] AI_GATEWAY_API_KEY is not set. Server-to-server calls from the Cloud API will be rejected unless they use a valid user JWT.',
+  );
+}
 
 app.listen(config.port, () => {
   console.log(`\n  Echo AI Gateway running on http://localhost:${config.port}`);

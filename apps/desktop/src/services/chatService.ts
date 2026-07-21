@@ -2,7 +2,13 @@ import { gatewayApi } from '../lib/api';
 import { getWsClient } from '../hooks/useWebSocket';
 import { useSessionStore } from '../stores/session';
 import { buildContextMessages } from '../lib/context';
-import type { ChatMessage, SessionType } from '@echo-gpt/shared-types';
+import type { AiModel, ChatMessage, SessionType } from '@echo-gpt/shared-types';
+
+/** Models that the AI Gateway currently passes multimodal content arrays through to.
+ *  Only these models are guaranteed to actually "see" an image when imageBase64 is supplied.
+ *  openrouter/auto is intentionally excluded because it may route to non-vision models.
+ */
+const VISION_SUPPORTED_MODELS: AiModel[] = ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'];
 
 export interface ChatRequestOptions {
   sessionId: string;
@@ -20,6 +26,8 @@ export interface ChatRequestOptions {
   history?: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>;
   temperature?: number;
   maxTokens?: number;
+  /** Base64 data URL of an image to include with the query (e.g. screenshot). */
+  imageBase64?: string;
 }
 
 export interface ChatResponse {
@@ -57,12 +65,38 @@ export async function askAssistant(opts: ChatRequestOptions): Promise<ChatRespon
   // 2) Append the manual-conversation history (last 6 to bound tokens).
   const messages: ChatMessage[] = [...baseMessages];
   if (opts.history?.length) messages.push(...opts.history.slice(-6));
-  messages.push({ role: 'user', content: trimmed });
+
+  // 3) Build the final user message. If a screenshot image is provided, use
+  //    OpenAI-style multimodal content array so vision-capable models can
+  //    see the image alongside the text query.
+  if (opts.imageBase64) {
+    messages.push({
+      role: 'user',
+      content: [
+        { type: 'text' as const, text: trimmed },
+        { type: 'image_url' as const, image_url: { url: opts.imageBase64 } },
+      ],
+    });
+  } else {
+    messages.push({ role: 'user', content: trimmed });
+  }
+
+  // 4) Ensure a vision-capable model is used when an image is supplied.
+  //    The Gateway's Anthropic/Gemini/Ollama adapters currently stringify
+  //    image content, and DeepSeek does not support vision, so fall back to
+  //    a known vision model when necessary.
+  let targetModel = opts.model as AiModel;
+  if (opts.imageBase64 && !VISION_SUPPORTED_MODELS.includes(targetModel)) {
+    console.warn(
+      `[chatService] Model ${targetModel} does not support vision in the current gateway. Falling back to gpt-4o-mini.`,
+    );
+    targetModel = 'gpt-4o-mini';
+  }
 
   let response: ChatResponse;
   try {
     response = await gatewayApi.post<ChatResponse>('/chat', {
-      model: opts.model,
+      model: targetModel,
       messages,
       stream: false,
       temperature: opts.temperature ?? 0.7,

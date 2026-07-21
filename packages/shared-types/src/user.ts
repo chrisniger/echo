@@ -27,6 +27,8 @@ export interface UserSettings {
     threshold: number;
     /** ms to wait after a question is detected before sending it to the AI */
     responseDelayMs: number;
+    /** ms cooldown between AI question responses to avoid spam (default 15s) */
+    cooldownMs: number;
     /** How many previous segments to keep in context (Layer 3) */
     contextWindowSize: number;
     enableFastRules: boolean;
@@ -44,6 +46,12 @@ export interface UserSettings {
    * classify it as a question. Other session types still require detection.
    */
   enableInterviewForceSend: boolean;
+  /**
+   * Advertise the Echo Cloud API over mDNS/Bonjour so companion apps can
+   * auto-discover this desktop on the local network. Disable on networks
+   * that block multicast or when you do not want the API discoverable.
+   */
+  enableMdnsAdvertisement: boolean;
 }
 
 export interface Subscription {

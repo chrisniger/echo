@@ -1,4 +1,5 @@
 import type { ChatMessage } from '@echo-gpt/shared-types';
+import { contentToString } from '@echo-gpt/shared-types';
 
 export class TokenCounter {
   private readonly charsPerToken = 4;
@@ -16,7 +17,7 @@ export class TokenCounter {
   countMessages(messages: ChatMessage[]): number {
     let total = 0;
     for (const msg of messages) {
-      total += this.count(msg.content);
+      total += this.count(contentToString(msg.content));
       total += 4;
     }
     return total;
@@ -31,13 +32,14 @@ export class TokenCounter {
 
     for (let i = messages.length - 1; i >= 0; i--) {
       const msg = messages[i];
-      const tokens = this.count(msg.content) + 4;
+      const text = contentToString(msg.content);
+      const tokens = this.count(text) + 4;
       if (total + tokens > limit) {
         const remaining = limit - total;
         const remainingChars = remaining * this.charsPerToken;
         result.unshift({
           ...msg,
-          content: msg.content.slice(-remainingChars),
+          content: text.slice(-remainingChars),
         });
         break;
       }

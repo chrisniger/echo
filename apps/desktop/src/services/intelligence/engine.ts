@@ -65,8 +65,10 @@ const EMPTY_CONTEXT: ContextMemory = {
   sessionMode: 'Unknown',
 };
 
-export function createQuestionDetectionEngine(initialConfig: EngineConfig): QuestionDetectionEngine {
-  let config = initialConfig;
+export function createQuestionDetectionEngine(
+  initialConfig: EngineConfig,
+): QuestionDetectionEngine {
+  const config = initialConfig;
   let context: ContextMemory = { ...EMPTY_CONTEXT };
 
   const engine: QuestionDetectionEngine = {
@@ -140,9 +142,7 @@ export function createQuestionDetectionEngine(initialConfig: EngineConfig): Ques
             const req = buildClassifierRequest(
               trimmed,
               context,
-              hit
-                ? { matched: true, rule: hit.rule, category: hit.category }
-                : { matched: false },
+              hit ? { matched: true, rule: hit.rule, category: hit.category } : { matched: false },
             );
             const res = await classifyWithAi(req);
             classifierOutput = {

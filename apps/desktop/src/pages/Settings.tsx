@@ -29,6 +29,8 @@ import {
   type SessionMode,
 } from '../services/intelligence';
 import { useAuthStore } from '../stores/auth';
+import { useToastStore } from '../stores/toast';
+import { api } from '../lib/api';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -425,6 +427,30 @@ export default function Settings() {
       </Section>
 
       <Section title="Devices" icon={<Monitor className="h-5 w-5 text-purple-500" />}>
+        <div className="flex items-center justify-between">
+          <div>
+            <Label>Advertise on LAN (mDNS)</Label>
+            <p className="text-xs text-zinc-500">
+              Let companion apps auto-discover this desktop on the local network.
+            </p>
+          </div>
+          <Switch
+            checked={settings.enableMdnsAdvertisement}
+            onCheckedChange={async (v) => {
+              try {
+                await api.post('/settings/mdns', { enabled: v });
+                updateSetting('enableMdnsAdvertisement', v);
+              } catch {
+                useToastStore.getState().pushToast({
+                  title: 'mDNS toggle failed',
+                  description: 'Could not update LAN advertisement on the Cloud API.',
+                  variant: 'warning',
+                  durationMs: 5000,
+                });
+              }
+            }}
+          />
+        </div>
         <DeviceManagement />
       </Section>
     </div>
@@ -523,12 +549,14 @@ function QuestionDetectionSettings() {
     enabled: true,
     threshold: 0.7,
     responseDelayMs: 0,
+    cooldownMs: 15000,
     contextWindowSize: 30,
     enableFastRules: true,
     enablePatterns: true,
     enableContextMemory: true,
     enableClassifier: false,
     questionPatterns: [],
+    classifierModel: undefined,
   };
 
   const set = <K extends keyof typeof qd>(key: K, value: (typeof qd)[K]) => {
@@ -594,6 +622,23 @@ function QuestionDetectionSettings() {
         />
         <p className="text-xs text-zinc-500">
           Segments below this confidence are ignored. Default 70% balances precision and recall.
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <Label>AI Cooldown: {((qd.cooldownMs ?? 15000) / 1000).toFixed(0)}s</Label>
+        <input
+          type="range"
+          min="5000"
+          max="60000"
+          step="5000"
+          value={qd.cooldownMs ?? 15000}
+          onChange={(e) => set('cooldownMs', parseInt(e.target.value, 10))}
+          className="w-full h-2 rounded-full appearance-none bg-zinc-800 cursor-pointer accent-fuchsia-500"
+        />
+        <p className="text-xs text-zinc-500">
+          Minimum wait between AI responses. Default 15s prevents spam; shorter values feel more
+          responsive but cost more tokens.
         </p>
       </div>
 

@@ -3,8 +3,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from './stores/auth';
 import { useWebSocket } from './hooks/useWebSocket';
-import { getAccessToken, getRefreshToken, getExpiresAt, isTokenExpired, storeTokens } from './lib/auth';
-import { onAuthRefresh } from './lib/api';
+import { getAccessToken, getRefreshToken, getExpiresAt, isTokenExpired } from './lib/auth';
+import { refreshAuthToken } from './lib/api';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
@@ -48,6 +48,7 @@ function ProtectedLayout({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   const [authBootstrapped, setAuthBootstrapped] = useState(false);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
   useEffect(() => {
     const bootstrap = async () => {
@@ -68,82 +69,106 @@ export default function App() {
   }, []);
 
   // Background token refresh: refresh the access token ~60s before it expires
-  // so the user is never kicked out while actively using the app.
+  // so the user is never kicked out while actively using the app. We use a
+  // recursive setTimeout so the timer survives system sleep/idle and the poll
+  // interval can speed up when the token is near expiry or already expired.
   useEffect(() => {
-    let timer: number | null = null;
+    let timeout: number | null = null;
+    let stopped = false;
 
-    const scheduleNextRefresh = () => {
-      if (timer) {
-        clearTimeout(timer);
-        timer = null;
-      }
+    const tryRefresh = async () => {
       const refreshToken = getRefreshToken();
-      if (!refreshToken) return;
+      if (!refreshToken) {
+        console.log('[Auth] background-refresh: no refresh token available');
+        return;
+      }
 
       const expiresAt = getExpiresAt();
       const now = Date.now();
-      const refreshIn = Math.max(30_000, expiresAt - now - 60_000);
+      const refreshThreshold = 60_000; // refresh 60s before expiry
 
-      timer = window.setTimeout(async () => {
+      // Only refresh if the token is close to expiring or already expired
+      if (expiresAt - now > refreshThreshold) {
+        console.log('[Auth] background-refresh: token still fresh, skipping', {
+          expiresAt,
+          now,
+          diffMs: expiresAt - now,
+        });
+        return;
+      }
+
+      console.log('[Auth] background-refresh: refreshing token', {
+        expiresAt,
+        now,
+        diffMs: expiresAt - now,
+      });
+
+      const result = await refreshAuthToken();
+      if (result.success) {
+        console.log('[Auth] background-refresh: token refreshed successfully');
         try {
-          const cloudBase = (import.meta.env.VITE_CLOUD_API_URL as string | undefined) || '';
-          const url = `${cloudBase.replace(/\/+$/, '')}/auth/refresh`;
-          const res = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ refreshToken }),
-          });
-          if (res.ok) {
-            const data = await res.json();
-            storeTokens(data.tokens);
-            onAuthRefresh(() => {
-              /* re-render subscribers (WS reconnect) */
-            });
-            try {
-              await useAuthStore.getState().fetchMe();
-            } catch {
-              /* tolerate transient errors */
-            }
-          } else if (res.status === 401) {
-            // Refresh token itself is dead — sign the user out
-            useAuthStore.getState().logout();
-          }
+          await useAuthStore.getState().fetchMe();
         } catch {
-          /* network blip, retry on next interval */
-        } finally {
-          scheduleNextRefresh();
+          /* tolerate transient errors */
         }
-      }, refreshIn);
+      } else if (result.isDead) {
+        // Refresh token itself is dead — sign the user out. The timeout
+        // will be torn down automatically by the effect cleanup.
+        console.error('[Auth] background-refresh: refresh token is dead, logging out');
+        useAuthStore.getState().logout();
+      } else {
+        console.warn('[Auth] background-refresh: refresh failed transiently, will retry');
+      }
     };
 
-    if (getRefreshToken() && !isTokenExpired()) {
-      scheduleNextRefresh();
-    } else if (getRefreshToken() && isTokenExpired()) {
-      // Token is already expired at app start — try to refresh now
-      (async () => {
-        try {
-          const cloudBase = (import.meta.env.VITE_CLOUD_API_URL as string | undefined) || '';
-          const url = `${cloudBase.replace(/\/+$/, '')}/auth/refresh`;
-          const res = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ refreshToken: getRefreshToken() }),
-          });
-          if (res.ok) {
-            const data = await res.json();
-            storeTokens(data.tokens);
-          }
-        } catch {
-          /* ignore */
-        }
-        scheduleNextRefresh();
-      })();
+    const scheduleNext = () => {
+      if (stopped) return;
+
+      const refreshToken = getRefreshToken();
+      if (!refreshToken) {
+        console.log('[Auth] background-refresh: no refresh token, stopping scheduler');
+        return;
+      }
+
+      const expiresAt = getExpiresAt();
+      const now = Date.now();
+      const refreshThreshold = 60_000;
+      const needsRefresh = expiresAt - now <= refreshThreshold;
+
+      // Poll more frequently when the token is expired or close to expiry so
+      // a transient network failure doesn't leave the user stale for long.
+      const delay = needsRefresh ? 5_000 : 30_000;
+
+      console.log('[Auth] background-refresh: scheduling next check', {
+        delayMs: delay,
+        needsRefresh,
+      });
+
+      timeout = window.setTimeout(() => {
+        void tryRefresh().then(scheduleNext);
+      }, delay);
+    };
+
+    if (getRefreshToken()) {
+      // Refresh immediately if already expired at app start, then schedule
+      // the next check based on the updated token lifetime.
+      if (isTokenExpired()) {
+        console.log(
+          '[Auth] background-refresh: token expired at app start, refreshing immediately',
+        );
+        void tryRefresh().then(scheduleNext);
+      } else {
+        scheduleNext();
+      }
+    } else {
+      console.log('[Auth] background-refresh: no refresh token at app start');
     }
 
     return () => {
-      if (timer) clearTimeout(timer);
+      stopped = true;
+      if (timeout) clearTimeout(timeout);
     };
-  }, [authBootstrapped]);
+  }, [authBootstrapped, isAuthenticated]);
 
   if (!authBootstrapped) {
     return (
@@ -161,12 +186,54 @@ export default function App() {
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
-              <Route path="/dashboard" element={<ProtectedLayout><Dashboard /></ProtectedLayout>} />
-              <Route path="/new-session" element={<ProtectedLayout><NewSession /></ProtectedLayout>} />
-              <Route path="/sessions/:id" element={<ProtectedLayout><SessionDetail /></ProtectedLayout>} />
-              <Route path="/history" element={<ProtectedLayout><History /></ProtectedLayout>} />
-              <Route path="/settings" element={<ProtectedLayout><Settings /></ProtectedLayout>} />
-              <Route path="/cv-library" element={<ProtectedLayout><CvLibrary /></ProtectedLayout>} />
+              <Route
+                path="/dashboard"
+                element={
+                  <ProtectedLayout>
+                    <Dashboard />
+                  </ProtectedLayout>
+                }
+              />
+              <Route
+                path="/new-session"
+                element={
+                  <ProtectedLayout>
+                    <NewSession />
+                  </ProtectedLayout>
+                }
+              />
+              <Route
+                path="/sessions/:id"
+                element={
+                  <ProtectedLayout>
+                    <SessionDetail />
+                  </ProtectedLayout>
+                }
+              />
+              <Route
+                path="/history"
+                element={
+                  <ProtectedLayout>
+                    <History />
+                  </ProtectedLayout>
+                }
+              />
+              <Route
+                path="/settings"
+                element={
+                  <ProtectedLayout>
+                    <Settings />
+                  </ProtectedLayout>
+                }
+              />
+              <Route
+                path="/cv-library"
+                element={
+                  <ProtectedLayout>
+                    <CvLibrary />
+                  </ProtectedLayout>
+                }
+              />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
           </div>

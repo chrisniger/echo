@@ -1,4 +1,10 @@
-import type { RuleHit, ContextMemory, DetectionResult, QuestionCategory } from './types';
+import type {
+  RuleHit,
+  ContextMemory,
+  DetectionResult,
+  QuestionCategory,
+  SessionMode,
+} from './types';
 
 /**
  * Layer 3 — Context memory.
@@ -13,18 +19,36 @@ import type { RuleHit, ContextMemory, DetectionResult, QuestionCategory } from '
  */
 
 const FOLLOWUP_PHRASES: string[] = [
-  'elaborate', 'elaborate on that', 'elaborate on',
-  'tell me more', 'tell me more about',
-  'go on', 'continue', 'and then',
-  'what do you mean', 'what do you mean by',
-  'what does that mean', 'how so', 'why is that',
-  'can you be more specific', 'be more specific',
-  'in what way', 'how do you mean',
-  'expand on', 'expand on that',
-  'elaborate further', 'give me an example', 'for instance',
-  'like what', 'such as',
-  'why', 'how come', 'really',
-  'interesting', 'go deeper', 'more detail',
+  'elaborate',
+  'elaborate on that',
+  'elaborate on',
+  'tell me more',
+  'tell me more about',
+  'go on',
+  'continue',
+  'and then',
+  'what do you mean',
+  'what do you mean by',
+  'what does that mean',
+  'how so',
+  'why is that',
+  'can you be more specific',
+  'be more specific',
+  'in what way',
+  'how do you mean',
+  'expand on',
+  'expand on that',
+  'elaborate further',
+  'give me an example',
+  'for instance',
+  'like what',
+  'such as',
+  'why',
+  'how come',
+  'really',
+  'interesting',
+  'go deeper',
+  'more detail',
   'can you explain further',
 ];
 
@@ -32,10 +56,7 @@ const FOLLOWUP_PHRASES: string[] = [
  * Decide whether the current segment is a follow-up to a previous question.
  * Returns the rule hit if so.
  */
-export function contextCheck(
-  text: string,
-  context: ContextMemory,
-): RuleHit | null {
+export function contextCheck(text: string, context: ContextMemory): RuleHit | null {
   const trimmed = text.trim();
   if (!trimmed) return null;
   const lower = trimmed.toLowerCase();
@@ -84,12 +105,12 @@ export function contextCheck(
 export function inferSessionMode(
   context: ContextMemory,
   recentCategories: Array<QuestionCategory | undefined>,
-): import('./types').SessionMode {
+): SessionMode {
   if (recentCategories.length === 0) return context.sessionMode;
 
   // Map categories to session-mode candidates with weights
-  const modeScores = new Map<import('./types').SessionMode, number>();
-  const bump = (mode: import('./types').SessionMode, n: number) => {
+  const modeScores = new Map<SessionMode, number>();
+  const bump = (mode: SessionMode, n: number) => {
     modeScores.set(mode, (modeScores.get(mode) ?? 0) + n);
   };
 
@@ -130,7 +151,7 @@ export function inferSessionMode(
 
   if (modeScores.size === 0) return context.sessionMode;
 
-  let best: import('./types').SessionMode = context.sessionMode;
+  let best: SessionMode = context.sessionMode;
   let bestScore = -1;
   for (const [mode, score] of modeScores) {
     if (score > bestScore) {

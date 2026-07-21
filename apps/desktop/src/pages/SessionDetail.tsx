@@ -18,6 +18,7 @@ import {
   Hourglass,
 } from 'lucide-react';
 import { useSessionStore } from '../stores/session';
+import { useSettingsStore } from '../stores/settings';
 import { useToastStore } from '../stores/toast';
 import { ApiError } from '../lib/api';
 import { SESSION_TYPES, isSessionType, type SessionType } from '@echo-gpt/shared-types';
@@ -63,6 +64,8 @@ export default function SessionDetail() {
     reclassifySession,
   } = useSessionStore();
   const pushToast = useToastStore((s) => s.pushToast);
+
+  const [actionLoading, setActionLoading] = useState<'pause' | 'resume' | 'end' | null>(null);
 
   async function handleReclassify(t: SessionType) {
     try {
@@ -117,11 +120,16 @@ export default function SessionDetail() {
     setCooldown(state);
   }, []);
 
+  const questionCooldownMs = useSettingsStore(
+    (s) => s.settings.questionDetection?.cooldownMs ?? 15000,
+  );
+
   useSessionBackground({
     enabled: shouldCapture,
     source: captureSource,
     transcriptionIntervalMs: currentSession?.transcriptionIntervalMs ?? 5000,
     gatewayUrl: 'http://localhost:4001',
+    questionCooldownMs,
     onCaptureStateChange: setBgCapture,
     onCooldownChange: handleCooldownChange,
   });
@@ -245,11 +253,47 @@ export default function SessionDetail() {
           />
           {currentSession.status === 'active' && (
             <>
-              <Button variant="secondary" size="sm" onClick={pauseSession}>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={actionLoading !== null}
+                onClick={async () => {
+                  setActionLoading('pause');
+                  try {
+                    await pauseSession();
+                  } catch (err) {
+                    pushToast({
+                      title: 'Pause failed',
+                      description: err instanceof Error ? err.message : 'Could not pause session',
+                      variant: 'warning',
+                    });
+                  } finally {
+                    setActionLoading(null);
+                  }
+                }}
+              >
                 <Pause className="mr-1 h-4 w-4" />
                 Pause
               </Button>
-              <Button variant="destructive" size="sm" onClick={endSession}>
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={actionLoading !== null}
+                onClick={async () => {
+                  setActionLoading('end');
+                  try {
+                    await endSession();
+                  } catch (err) {
+                    pushToast({
+                      title: 'End session failed',
+                      description: err instanceof Error ? err.message : 'Could not end session',
+                      variant: 'warning',
+                    });
+                  } finally {
+                    setActionLoading(null);
+                  }
+                }}
+              >
                 <Square className="mr-1 h-4 w-4" />
                 End
               </Button>
@@ -257,11 +301,47 @@ export default function SessionDetail() {
           )}
           {currentSession.status === 'paused' && (
             <>
-              <Button variant="secondary" size="sm" onClick={resumeSession}>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={actionLoading !== null}
+                onClick={async () => {
+                  setActionLoading('resume');
+                  try {
+                    await resumeSession();
+                  } catch (err) {
+                    pushToast({
+                      title: 'Resume failed',
+                      description: err instanceof Error ? err.message : 'Could not resume session',
+                      variant: 'warning',
+                    });
+                  } finally {
+                    setActionLoading(null);
+                  }
+                }}
+              >
                 <Play className="mr-1 h-4 w-4" />
                 Resume
               </Button>
-              <Button variant="destructive" size="sm" onClick={endSession}>
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={actionLoading !== null}
+                onClick={async () => {
+                  setActionLoading('end');
+                  try {
+                    await endSession();
+                  } catch (err) {
+                    pushToast({
+                      title: 'End session failed',
+                      description: err instanceof Error ? err.message : 'Could not end session',
+                      variant: 'warning',
+                    });
+                  } finally {
+                    setActionLoading(null);
+                  }
+                }}
+              >
                 <Square className="mr-1 h-4 w-4" />
                 End
               </Button>
@@ -355,12 +435,7 @@ export default function SessionDetail() {
 
         <TabsContent value="capture" className="mt-4 space-y-4">
           <AudioCaptureControls sessionId={currentSession.id} />
-          <ScreenshotCapture
-            sessionId={currentSession.id}
-            onScreenshotCaptured={(result, analysis) => {
-              console.log('Screenshot captured:', result, analysis);
-            }}
-          />
+          <ScreenshotCapture sessionId={currentSession.id} />
         </TabsContent>
 
         <TabsContent value="responses" className="space-y-3 mt-4">

@@ -21,7 +21,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void initState() {
     super.initState();
-    _serverCtrl = TextEditingController(text: context.read<ApiService>().baseUrl);
+    _serverCtrl = TextEditingController(text: context.read<ApiService>().baseUrl ?? '');
   }
 
   @override
@@ -31,11 +31,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _save() async {
+    setState(() => _scanError = null);
     final api = context.read<ApiService>();
     final url = _serverCtrl.text.trim();
     if (url.isEmpty) return;
-    await api.setBaseUrl(url);
-    await api.storage.write(key: 'saved_server', value: url);
+
+    final normalized = ApiService.normalizeBaseUrl(url);
+    _serverCtrl.text = normalized;
+
+    if (!ApiService.isValidServerUrl(normalized)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Enter a valid server URL like http://192.168.x.x:4000'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    if (ApiService.isLocalhost(normalized)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Use the PC\'s local IP (e.g. 192.168.x.x:4000), not localhost.'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    await api.setBaseUrl(normalized);
+    await api.storage.write(key: 'saved_server', value: normalized);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Server URL saved. Reconnecting…')),
@@ -85,10 +112,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _SectionHeader('Display'),
+          const _SectionHeader('Display'),
           _DisplaySettingsCard(display: display),
           const Divider(height: 32),
-          _SectionHeader('Server'),
+          const _SectionHeader('Server'),
           TextField(
             controller: _serverCtrl,
             decoration: const InputDecoration(
@@ -134,7 +161,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 )),
           ],
           const Divider(height: 32),
-          _SectionHeader('Account'),
+          const _SectionHeader('Account'),
           ListTile(
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.person),
@@ -148,7 +175,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               color: api.isConnected ? Colors.green : Colors.red,
             ),
             title: Text(api.isConnected ? 'Connected' : 'Disconnected'),
-            subtitle: Text('Server: ${api.baseUrl}'),
+            subtitle: Text('Server: ${api.baseUrl ?? 'Not configured'}'),
           ),
           const SizedBox(height: 16),
           OutlinedButton.icon(
@@ -171,10 +198,10 @@ class _DisplaySettingsCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A1A1A),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF2A2A2A)),
+      decoration: const BoxDecoration(
+        color: Color(0xFF1A1A1A),
+        borderRadius: BorderRadius.all(Radius.circular(12)),
+        border: Border.fromBorderSide(BorderSide(color: Color(0xFF2A2A2A))),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [

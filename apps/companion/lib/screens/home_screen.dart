@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../services/auth_service.dart';
 import '../widgets/device_status.dart';
 import 'assistant_screen.dart';
-import 'transcript_screen.dart';
 import 'controls_screen.dart';
 import 'settings_screen.dart';
 
@@ -19,7 +16,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   final _screens = const [
     AssistantScreen(),
-    TranscriptScreen(),
     ControlsScreen(),
   ];
 
@@ -43,13 +39,15 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      body: _screens[_currentIndex],
+      body: IndexedStack(
+        index: _currentIndex,
+        children: _screens,
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: (i) => setState(() => _currentIndex = i),
         destinations: const [
           NavigationDestination(icon: Icon(Icons.chat), label: 'Assistant'),
-          NavigationDestination(icon: Icon(Icons.transcribe), label: 'Transcript'),
           NavigationDestination(icon: Icon(Icons.gamepad), label: 'Controls'),
         ],
       ),

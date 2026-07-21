@@ -7,6 +7,7 @@ target
 .env.local
 *.db
 *.db-journal
+*.log
 data/
 .DS_Store
 Thumbs.db

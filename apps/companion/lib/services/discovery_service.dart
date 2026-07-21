@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:multicast_dns/multicast_dns.dart';
 import 'package:network_info_plus/network_info_plus.dart';
-import 'package:http/http.dart' as http;
 
 class DiscoveredServer {
   final String url;
@@ -10,10 +10,9 @@ class DiscoveredServer {
 }
 
 class DiscoveryService {
-  /// Scan the local subnet (e.g. 192.168.1.0/24) for an Echo cloud-api
-  /// responding on port 4000. Returns a list of reachable servers sorted
-  /// by latency. Times out after [perHostTimeoutMs] per host and
-  /// [totalTimeoutMs] overall.
+  /// Discover Echo cloud-api servers on the local network using mDNS first,
+  /// then fall back to a subnet IP scan. Returns a list of reachable servers
+  /// sorted by latency.
   static Future<List<DiscoveredServer>> scanLocalSubnet({
     int port = 4000,
     Duration perHostTimeout = const Duration(milliseconds: 400),
@@ -21,6 +20,16 @@ class DiscoveryService {
     List<String> seedHosts = const [],
   }) async {
     final candidates = <String>[...seedHosts];
+
+    // 1. Try mDNS discovery first.
+    try {
+      final mdnsResults = await _discoverMdns(port: port, timeout: totalTimeout);
+      if (mdnsResults.isNotEmpty) {
+        return mdnsResults;
+      }
+    } catch (_) {
+      // Fall back to IP scan.
+    }
 
     try {
       final info = NetworkInfo();
@@ -78,5 +87,66 @@ class DiscoveryService {
     final parts = ip.split('.');
     if (parts.length != 4) return null;
     return '${parts[0]}.${parts[1]}.${parts[2]}';
+  }
+
+  /// Query mDNS for `_echo._tcp` services. Returns reachable servers sorted
+  /// by latency, or an empty list if no service is found.
+  static Future<List<DiscoveredServer>> _discoverMdns({
+    required int port,
+    Duration timeout = const Duration(seconds: 3),
+  }) async {
+    return Future.any<List<DiscoveredServer>>([
+      Future<List<DiscoveredServer>>(() async {
+        final results = <DiscoveredServer>[];
+        final MDnsClient client = MDnsClient();
+        await client.start();
+        try {
+          final ptrStream = client.lookup<PtrResourceRecord>(
+            ResourceRecordQuery.serverPointer('_echo._tcp.local'),
+          );
+          final ptrRecords = await ptrStream.timeout(timeout, onTimeout: (sink) => sink.close()).toList();
+          for (final PtrResourceRecord ptr in ptrRecords) {
+            if (ptr.domainName.isEmpty) continue;
+
+            final hostName = ptr.domainName;
+            String? target;
+            int? discoveredPort;
+
+            await for (final SrvResourceRecord srv in client.lookup<SrvResourceRecord>(
+              ResourceRecordQuery.service(hostName),
+            )) {
+              target = srv.target;
+              discoveredPort = srv.port;
+              break;
+            }
+
+            if (target == null || discoveredPort == null) continue;
+
+            // Resolve the target hostname to an usable IP address.
+            try {
+              final addresses = await InternetAddress.lookup(target);
+              if (addresses.isEmpty) continue;
+              final ip = addresses.firstWhere(
+                (a) => a.type == InternetAddressType.IPv4,
+                orElse: () => addresses.first,
+              );
+              final server = await _probeHost(
+                HttpClient()..connectionTimeout = const Duration(milliseconds: 400),
+                ip.address,
+                discoveredPort,
+              );
+              if (server != null) results.add(server);
+            } catch (_) {
+              // Could not resolve target; skip.
+            }
+          }
+        } finally {
+          client.stop();
+        }
+        results.sort((a, b) => a.latencyMs.compareTo(b.latencyMs));
+        return results;
+      }),
+      Future.delayed(timeout, () => <DiscoveredServer>[]),
+    ]);
   }
 }

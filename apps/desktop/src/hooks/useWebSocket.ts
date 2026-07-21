@@ -19,17 +19,17 @@ export function getWsClient(): WsClient {
 
 export function useWebSocket() {
   const wsClient = getWsClient();
-  const addTranscriptSegment = useSessionStore(state => state.addTranscriptSegment);
-  const addAiResponse = useSessionStore(state => state.addAiResponse);
-  const currentSession = useSessionStore(state => state.currentSession);
-  const updateCurrentSessionType = useSessionStore(state => state.updateCurrentSessionType);
+  const addTranscriptSegment = useSessionStore((state) => state.addTranscriptSegment);
+  const addAiResponse = useSessionStore((state) => state.addAiResponse);
+  const currentSession = useSessionStore((state) => state.currentSession);
+  const updateCurrentSessionType = useSessionStore((state) => state.updateCurrentSessionType);
   const updateCurrentSessionTranscriptionInterval = useSessionStore(
-    state => state.updateCurrentSessionTranscriptionInterval,
+    (state) => state.updateCurrentSessionTranscriptionInterval,
   );
-  const isAuthenticated = useAuthStore(state => state.isAuthenticated);
-  const addDevice = useDeviceStore(state => state.addDevice);
-  const setConnected = useDeviceStore(state => state.setConnected);
-  const updateDevice = useDeviceStore(state => state.updateDevice);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const addDevice = useDeviceStore((state) => state.addDevice);
+  const setConnected = useDeviceStore((state) => state.setConnected);
+  const updateDevice = useDeviceStore((state) => state.updateDevice);
   const inFlightRef = useRef<Set<string>>(new Set());
   const seenAiResponseIdsRef = useRef<Set<string>>(new Set());
 
@@ -74,7 +74,7 @@ export function useWebSocket() {
         const { data } = event;
         if (data.sessionId === currentSession?.id) {
           addTranscriptSegment({
-            id: crypto.randomUUID(),
+            id: data.id || crypto.randomUUID(),
             sessionId: data.sessionId,
             speakerId: 'unknown',
             speakerLabel: data.speaker,
@@ -205,6 +205,14 @@ export function useWebSocket() {
       }
     });
 
+    // Companion → Desktop: companion pressed the Screenshot button; open the
+    // desktop area-selection UI so the user can crop and analyze a region.
+    const unsubscribeScreenshotTrigger = wsClient.on('screenshot.trigger', (event) => {
+      if (event.type === 'screenshot.trigger') {
+        window.dispatchEvent(new CustomEvent('echo:trigger-screenshot'));
+      }
+    });
+
     return () => {
       unsubscribeTranscript();
       unsubscribeAiResponse();
@@ -216,6 +224,7 @@ export function useWebSocket() {
       unsubscribeSessionUpdated();
       unsubscribeDeviceConnected();
       unsubscribeDeviceDisconnected();
+      unsubscribeScreenshotTrigger();
     };
   }, [
     currentSession?.id,

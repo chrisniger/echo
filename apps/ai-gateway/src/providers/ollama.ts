@@ -1,5 +1,12 @@
 import { v4 as uuid } from 'uuid';
-import type { ChatRequest, ChatResponse, ChatChunk, AiModel, ChatMessage } from '@echo-gpt/shared-types';
+import type {
+  ChatRequest,
+  ChatResponse,
+  ChatChunk,
+  AiModel,
+  ChatMessage,
+} from '@echo-gpt/shared-types';
+import { contentToString } from '@echo-gpt/shared-types';
 import { BaseProvider } from './index.js';
 import { config } from '../config.js';
 
@@ -18,7 +25,7 @@ export class OllamaProvider extends BaseProvider {
   private toOllamaMessages(messages: ChatMessage[]): Array<{ role: string; content: string }> {
     return messages.map((m: ChatMessage) => ({
       role: m.role,
-      content: m.content,
+      content: contentToString(m.content),
     }));
   }
 
@@ -44,7 +51,7 @@ export class OllamaProvider extends BaseProvider {
       throw new Error(`Ollama API error ${response.status}: ${error}`);
     }
 
-    const data = await response.json() as {
+    const data = (await response.json()) as {
       message: { content: string };
       done: boolean;
       total_duration?: number;
@@ -67,7 +74,10 @@ export class OllamaProvider extends BaseProvider {
     };
   }
 
-  async *chatStream(request: ChatRequest, options?: { signal?: AbortSignal }): AsyncGenerator<ChatChunk> {
+  async *chatStream(
+    request: ChatRequest,
+    options?: { signal?: AbortSignal },
+  ): AsyncGenerator<ChatChunk> {
     const response = await fetch(`${config.ollama.baseUrl}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -118,11 +128,14 @@ export class OllamaProvider extends BaseProvider {
             provider: this.name,
             content: parsed.message?.content ?? '',
             finishReason: parsed.done ? 'stop' : null,
-            tokensUsed: parsed.done && parsed.eval_count ? {
-              prompt: parsed.prompt_eval_count ?? 0,
-              completion: parsed.eval_count ?? 0,
-              total: (parsed.prompt_eval_count ?? 0) + (parsed.eval_count ?? 0),
-            } : null,
+            tokensUsed:
+              parsed.done && parsed.eval_count
+                ? {
+                    prompt: parsed.prompt_eval_count ?? 0,
+                    completion: parsed.eval_count ?? 0,
+                    total: (parsed.prompt_eval_count ?? 0) + (parsed.eval_count ?? 0),
+                  }
+                : null,
           };
         } catch {}
       }
@@ -131,7 +144,9 @@ export class OllamaProvider extends BaseProvider {
     }
   }
 
-  protected extractStreamContent(parsed: unknown): { content: string; finishReason?: string } | null {
+  protected extractStreamContent(
+    parsed: unknown,
+  ): { content: string; finishReason?: string } | null {
     const data = parsed as { message?: { content: string }; done?: boolean };
     if (!data.message?.content) return null;
     return { content: data.message.content, finishReason: data.done ? 'stop' : undefined };

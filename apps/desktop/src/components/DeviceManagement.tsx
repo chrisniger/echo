@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { Monitor, Smartphone, Trash2, Edit3, Check, X, RefreshCw, Copy, Link } from 'lucide-react';
+import QRCode from 'qrcode';
 import { usePairingStore, type PairedDevice } from '../stores/pairing';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -32,6 +34,7 @@ export function DeviceManagement() {
   const [copied, setCopied] = useState(false);
   const [phoneCode, setPhoneCode] = useState('');
   const [verifying, setVerifying] = useState(false);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
 
   useEffect(() => {
     fetchDevices();
@@ -39,6 +42,49 @@ export function DeviceManagement() {
     const interval = setInterval(fetchPendingPairings, 5000);
     return () => clearInterval(interval);
   }, [fetchDevices, fetchPendingPairings]);
+
+  // Generate a QR code whenever a pairing code is active. The payload encodes
+  // the 6-character code plus the Cloud API URL so the companion can connect
+  // without manual IP entry. We only use VITE_CLOUD_API_URL; falling back to
+  // window.location.origin would point the companion at the Vite dev server.
+  useEffect(() => {
+    if (!activeCode) {
+      setQrDataUrl(null);
+      return;
+    }
+
+    let cancelled = false;
+    const buildPayload = async () => {
+      const cloudBase = import.meta.env.VITE_CLOUD_API_URL as string | undefined;
+      const payloadMap: Record<string, string> = { code: activeCode.code };
+
+      if (cloudBase && !cloudBase.includes('localhost') && !cloudBase.includes('127.0.0.1')) {
+        payloadMap.serverUrl = cloudBase.replace(/\/$/, '');
+      } else {
+        // The desktop is running against a localhost Cloud API, but phones
+        // cannot reach localhost on the PC. Ask Tauri for the real LAN IP so
+        // the companion can connect to the same machine.
+        try {
+          const localIp = await invoke<string>('get_local_ip');
+          const portMatch = cloudBase?.match(/:(\d+)/);
+          const port = portMatch ? portMatch[1] : '4000';
+          payloadMap.serverUrl = `http://${localIp}:${port}`;
+        } catch {
+          // If we cannot determine the LAN IP, omit serverUrl and let the
+          // companion discover the server with network discovery.
+        }
+      }
+
+      const payload = JSON.stringify(payloadMap);
+      const url = await QRCode.toDataURL(payload, { width: 240, margin: 2 });
+      if (!cancelled) setQrDataUrl(url);
+    };
+
+    buildPayload();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeCode]);
 
   const handleGenerateCode = async () => {
     if (!newDeviceName.trim()) return;
@@ -91,7 +137,15 @@ export function DeviceManagement() {
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-medium">Paired Devices</h3>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => { fetchDevices(); fetchPendingPairings(); }} disabled={isLoading}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              fetchDevices();
+              fetchPendingPairings();
+            }}
+            disabled={isLoading}
+          >
             <RefreshCw className={`w-4 h-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
@@ -107,7 +161,9 @@ export function DeviceManagement() {
                 {!activeCode ? (
                   <>
                     <div className="space-y-3">
-                      <p className="text-sm text-zinc-400">Option 1: Generate a code from desktop</p>
+                      <p className="text-sm text-zinc-400">
+                        Option 1: Generate a code from desktop
+                      </p>
                       <Input
                         placeholder="Device name (e.g., My Phone)"
                         value={newDeviceName}
@@ -162,6 +218,18 @@ export function DeviceManagement() {
                         Expires at {new Date(activeCode.expiresAt).toLocaleTimeString()}
                       </p>
                     </div>
+                    {qrDataUrl && (
+                      <div className="flex flex-col items-center gap-2">
+                        <img
+                          src={qrDataUrl}
+                          alt="QR code for companion pairing"
+                          className="rounded-lg border border-zinc-700 bg-white p-2"
+                          width={240}
+                          height={240}
+                        />
+                        <p className="text-xs text-zinc-500">Scan with Echo Companion</p>
+                      </div>
+                    )}
                     <div className="flex gap-2">
                       <Button onClick={handleCopyCode} variant="outline" className="flex-1">
                         {copied ? (
@@ -176,8 +244,8 @@ export function DeviceManagement() {
                       </Button>
                     </div>
                     <p className="text-xs text-zinc-500 text-center">
-                      Open the Echo Companion app and enter this code, or scan the QR code from the
-                      app.
+                      Open the Echo Companion app and scan the QR code, or enter the 6-character
+                      code manually.
                     </p>
                   </div>
                 )}

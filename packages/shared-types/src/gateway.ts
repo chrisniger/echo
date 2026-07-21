@@ -1,10 +1,4 @@
-export type AiProvider =
-  | 'openai'
-  | 'anthropic'
-  | 'gemini'
-  | 'deepseek'
-  | 'openrouter'
-  | 'ollama';
+export type AiProvider = 'openai' | 'anthropic' | 'gemini' | 'deepseek' | 'openrouter' | 'ollama';
 
 export type AiModel =
   | 'gpt-4o'
@@ -32,9 +26,43 @@ export type AiModel =
 
 export type MessageRole = 'system' | 'user' | 'assistant';
 
+/** OpenAI-compatible content part for vision/multimodal messages. */
+export interface TextContentPart {
+  type: 'text';
+  text: string;
+}
+
+/** OpenAI-compatible image content part. `url` can be a data URL or remote URL. */
+export interface ImageContentPart {
+  type: 'image_url';
+  image_url: { url: string };
+}
+
+export type ChatMessageContent = string | Array<TextContentPart | ImageContentPart>;
+
+/** Returns true when the message content is an array of parts (multimodal). */
+export function isContentArray(
+  content: ChatMessageContent,
+): content is Array<TextContentPart | ImageContentPart> {
+  return Array.isArray(content);
+}
+
+/** Convert any ChatMessageContent to a plain string for providers that only support text.
+ *  Text parts are concatenated; image parts are replaced with a placeholder noting the image URL.
+ */
+export function contentToString(content: ChatMessageContent): string {
+  if (typeof content === 'string') return content;
+  return content
+    .map((part) => {
+      if (part.type === 'text') return part.text;
+      return `[Image: ${part.image_url.url}]`;
+    })
+    .join('\n');
+}
+
 export interface ChatMessage {
   role: MessageRole;
-  content: string;
+  content: ChatMessageContent;
 }
 
 export interface ChatRequest {

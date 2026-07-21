@@ -1,19 +1,21 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import type { ChatRequest } from '@echo-gpt/shared-types';
+import type { AiRouter } from '../services/router.js';
 
 const cvParseRequestSchema = z.object({
   text: z.string(),
 });
 
-export function createCvParserRouter(): Router {
+export function createCvParserRouter(routerInstance: AiRouter): Router {
   const router = Router();
 
   router.post('/parse-cv', async (req, res) => {
     try {
       const parsed = cvParseRequestSchema.parse(req.body);
-      
-      const result = await parseCv(parsed.text);
-      
+
+      const result = await parseCv(parsed.text, routerInstance);
+
       res.json({ parsed: result });
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -52,7 +54,7 @@ interface ParsedCV {
   certifications: string[];
 }
 
-async function parseCv(text: string): Promise<ParsedCV> {
+async function parseCv(text: string, routerInstance: AiRouter): Promise<ParsedCV> {
   // Use AI to parse the CV
   const prompt = `Parse the following CV/resume text and extract structured information. Return a JSON object with the following structure:
 {
@@ -89,36 +91,27 @@ ${text}
 Return ONLY the JSON object, no additional text.`;
 
   try {
-    // Call the chat endpoint with the parsing prompt
-    const response = await fetch('http://localhost:4001/api/chat', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'deepseek-chat',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a CV/resume parser. Extract structured information from the provided text and return it as a JSON object.'
-          },
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        stream: false,
-        temperature: 0.1,
-        maxTokens: 4000,
-      }),
-    });
+    // Call the chat router directly to avoid an internal HTTP round-trip.
+    const request: ChatRequest = {
+      model: 'deepseek-chat',
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You are a CV/resume parser. Extract structured information from the provided text and return it as a JSON object.',
+        },
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+      stream: false,
+      temperature: 0.1,
+      maxTokens: 4000,
+    };
 
-    if (!response.ok) {
-      throw new Error('AI Gateway request failed');
-    }
-
-    const data = (await response.json()) as { content: string };
-    const content = data.content;
+    const response = await routerInstance.chat(request);
+    const content = response.content;
 
     // Extract JSON from the response
     const jsonMatch = content.match(/\{[\s\S]*\}/);
@@ -140,7 +133,7 @@ Return ONLY the JSON object, no additional text.`;
     throw new Error('Failed to parse JSON from AI response');
   } catch (error) {
     console.error('[CV Parser] AI parsing failed:', error);
-    
+
     // Fallback to regex-based parsing
     return parseCvFallback(text);
   }
@@ -168,8 +161,8 @@ function parseCvFallback(text: string): ParsedCV {
   if (skillsSection) {
     parsed.skills = skillsSection[1]
       .split(/[,•\n]/)
-      .map(s => s.trim())
-      .filter(s => s.length > 0 && s.length < 50);
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0 && s.length < 50);
   }
 
   return parsed;

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/pairing_service.dart';
 import '../services/auth_service.dart';
+import 'qr_scan_screen.dart';
 
 class PairingScreen extends StatefulWidget {
   const PairingScreen({super.key});
@@ -140,6 +141,22 @@ class _PairingScreenState extends State<PairingScreen> {
               const SizedBox(height: 24),
               const Row(children: [Expanded(child: Divider()), Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Text('OR', style: TextStyle(color: Colors.grey))), Expanded(child: Divider())]),
               const SizedBox(height: 24),
+              SizedBox(width: double.infinity, child: ElevatedButton.icon(
+                onPressed: _loading ? null : () async {
+                  final result = await Navigator.of(context).push<bool>(
+                    MaterialPageRoute(builder: (_) => const QrScanScreen()),
+                  );
+                  if (result == true && mounted) {
+                    setState(() { _waitingForApproval = true; });
+                  }
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981), padding: const EdgeInsets.symmetric(vertical: 14)),
+                icon: const Icon(Icons.qr_code_scanner, color: Colors.white),
+                label: const Text('Scan QR Code', style: TextStyle(color: Colors.white)),
+              )),
+              const SizedBox(height: 16),
+              const Row(children: [Expanded(child: Divider()), Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Text('OR', style: TextStyle(color: Colors.grey))), Expanded(child: Divider())]),
+              const SizedBox(height: 16),
               TextField(controller: _codeCtrl, decoration: const InputDecoration(labelText: 'Enter 6-character code', border: OutlineInputBorder(), hintText: 'ABC123'), style: const TextStyle(fontFamily: 'JetBrainsMono', fontSize: 20, letterSpacing: 4)),
               const SizedBox(height: 16),
               SizedBox(width: double.infinity, child: OutlinedButton(

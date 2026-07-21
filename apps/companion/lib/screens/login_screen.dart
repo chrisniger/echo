@@ -35,10 +35,15 @@ class _LoginScreenState extends State<LoginScreen> {
     final savedServer = await api.storage.read(key: 'saved_server');
 
     if (savedEmail != null) _emailCtrl.text = savedEmail;
-    if (savedServer != null) {
+    if (savedServer != null && savedServer.isNotEmpty) {
       _serverCtrl.text = savedServer;
     } else {
-      _serverCtrl.text = api.baseUrl;
+      _serverCtrl.text = api.baseUrl ?? '';
+    }
+
+    // If no server URL is known yet, automatically scan the local network.
+    if (_serverCtrl.text.trim().isEmpty) {
+      await _scanNetwork();
     }
   }
 
@@ -103,13 +108,33 @@ class _LoginScreenState extends State<LoginScreen> {
     final password = _passwordCtrl.text.trim();
     final server = _serverCtrl.text.trim();
     final remember = _rememberMe;
+
+    final normalized = ApiService.normalizeBaseUrl(server);
+    _serverCtrl.text = normalized;
+
+    if (!ApiService.isValidServerUrl(normalized)) {
+      setState(() {
+        _loading = false;
+        _error = 'Enter a valid server URL like http://192.168.x.x:4000';
+      });
+      return;
+    }
+
+    if (ApiService.isLocalhost(normalized)) {
+      setState(() {
+        _loading = false;
+        _error = 'Use the PC\'s local IP address (e.g. 192.168.x.x:4000), not localhost.';
+      });
+      return;
+    }
+
     try {
-      await api.setBaseUrl(server);
+      await api.setBaseUrl(normalized);
       await auth.login(email, password, rememberMe: remember);
 
       if (remember) {
         await api.storage.write(key: 'saved_email', value: email);
-        await api.storage.write(key: 'saved_server', value: server);
+        await api.storage.write(key: 'saved_server', value: normalized);
       }
     } catch (e) {
       if (!mounted) return;
@@ -117,6 +142,15 @@ class _LoginScreenState extends State<LoginScreen> {
     } finally {
       if (mounted) setState(() { _loading = false; });
     }
+  }
+
+  bool get _canLogin {
+    final server = _serverCtrl.text.trim();
+    final normalized = ApiService.normalizeBaseUrl(server);
+    return _emailCtrl.text.trim().isNotEmpty &&
+        _passwordCtrl.text.isNotEmpty &&
+        ApiService.isValidServerUrl(normalized) &&
+        !ApiService.isLocalhost(normalized);
   }
 
   @override
@@ -140,6 +174,7 @@ class _LoginScreenState extends State<LoginScreen> {
             const SizedBox(height: 12),
             TextField(
               controller: _serverCtrl,
+              onChanged: (_) => setState(() {}),
               decoration: const InputDecoration(
                 labelText: 'Server URL',
                 hintText: 'http://192.168.x.x:4000',
@@ -182,9 +217,9 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ],
             const SizedBox(height: 16),
-            TextField(controller: _emailCtrl, decoration: const InputDecoration(labelText: 'Email', border: OutlineInputBorder()), keyboardType: TextInputType.emailAddress),
+            TextField(controller: _emailCtrl, onChanged: (_) => setState(() {}), decoration: const InputDecoration(labelText: 'Email', border: OutlineInputBorder()), keyboardType: TextInputType.emailAddress),
             const SizedBox(height: 12),
-            TextField(controller: _passwordCtrl, decoration: const InputDecoration(labelText: 'Password', border: OutlineInputBorder()), obscureText: true),
+            TextField(controller: _passwordCtrl, onChanged: (_) => setState(() {}), decoration: const InputDecoration(labelText: 'Password', border: OutlineInputBorder()), obscureText: true),
             const SizedBox(height: 16),
             Row(
               children: [
@@ -198,7 +233,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
             const SizedBox(height: 16),
             SizedBox(width: double.infinity, height: 48, child: ElevatedButton(
-              onPressed: _loading ? null : _login,
+              onPressed: (_loading || !_canLogin) ? null : _login,
               style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF5C7CFA)),
               child: _loading ? const CircularProgressIndicator(strokeWidth: 2, color: Colors.white) : const Text('Sign In', style: TextStyle(fontSize: 16, color: Colors.white)),
             )),

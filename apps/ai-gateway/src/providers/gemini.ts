@@ -1,5 +1,6 @@
 import { v4 as uuid } from 'uuid';
 import type { ChatRequest, ChatResponse, ChatChunk, AiModel } from '@echo-gpt/shared-types';
+import { contentToString } from '@echo-gpt/shared-types';
 import { BaseProvider } from './index.js';
 import { config } from '../config.js';
 
@@ -23,9 +24,9 @@ export class GeminiProvider extends BaseProvider {
     const parts: Array<{ text: string }> = [];
     for (const m of messages) {
       if (m.role === 'system') {
-        parts.push({ text: `[System Instruction]: ${m.content}` });
+        parts.push({ text: `[System Instruction]: ${contentToString(m.content)}` });
       } else {
-        parts.push({ text: m.content });
+        parts.push({ text: contentToString(m.content) });
       }
     }
     return parts;
@@ -54,7 +55,7 @@ export class GeminiProvider extends BaseProvider {
       throw new Error(`Gemini API error ${response.status}: ${error}`);
     }
 
-    const data = await response.json() as {
+    const data = (await response.json()) as {
       candidates?: Array<{
         content?: { parts?: Array<{ text?: string }> };
         finishReason?: string;
@@ -82,7 +83,10 @@ export class GeminiProvider extends BaseProvider {
     };
   }
 
-  async *chatStream(request: ChatRequest, options?: { signal?: AbortSignal }): AsyncGenerator<ChatChunk> {
+  async *chatStream(
+    request: ChatRequest,
+    options?: { signal?: AbortSignal },
+  ): AsyncGenerator<ChatChunk> {
     const modelId = this.getModelId(request.model);
     const url = `${config.gemini.baseUrl}/models/${modelId}:streamGenerateContent?key=${config.gemini.apiKey}&alt=sse`;
 
@@ -149,8 +153,12 @@ export class GeminiProvider extends BaseProvider {
     }
   }
 
-  protected extractStreamContent(parsed: unknown): { content: string; finishReason?: string } | null {
-    const data = parsed as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> }; finishReason?: string }> };
+  protected extractStreamContent(
+    parsed: unknown,
+  ): { content: string; finishReason?: string } | null {
+    const data = parsed as {
+      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> }; finishReason?: string }>;
+    };
     const candidate = data.candidates?.[0];
     const text = candidate?.content?.parts?.map((p) => p.text ?? '').join('') ?? '';
     if (!text) return null;

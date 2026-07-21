@@ -70,6 +70,17 @@ class _ControlsScreenState extends State<ControlsScreen> {
     }
   }
 
+  Future<void> _triggerScreenshot() async {
+    final api = context.read<ApiService>();
+    final sent = api.triggerScreenshot();
+    if (!mounted) return;
+    if (sent) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Screenshot requested on desktop')));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Not connected — screenshot request failed')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final hasSession = _sessionId != null && _status != 'ended' && _status != 'No active session';
@@ -83,9 +94,37 @@ class _ControlsScreenState extends State<ControlsScreen> {
             Text('Status: $_status', style: const TextStyle(color: Colors.white70)),
             const SizedBox(height: 16),
             Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Expanded(child: _ControlButton(icon: isActive ? Icons.pause : Icons.play_arrow, label: isActive ? 'Pause' : 'Resume', color: Colors.orange, onTap: hasSession && !_busy ? () => _run(isActive ? 'pause' : 'resume') : null)),
+              Expanded(
+                child: _ControlButton(
+                  icon: isActive ? Icons.pause : Icons.play_arrow,
+                  label: isActive ? 'Pause' : 'Resume',
+                  color: Colors.orange,
+                  busy: _busy,
+                  onTap: hasSession && !_busy ? () => _run(isActive ? 'pause' : 'resume') : null,
+                ),
+              ),
               const SizedBox(width: 16),
-              Expanded(child: _ControlButton(icon: Icons.stop, label: 'End', color: Colors.red, onTap: hasSession && !_busy ? () => _run('end') : null)),
+              Expanded(
+                child: _ControlButton(
+                  icon: Icons.stop,
+                  label: 'End',
+                  color: Colors.red,
+                  busy: _busy,
+                  onTap: hasSession && !_busy ? () => _run('end') : null,
+                ),
+              ),
+            ]),
+            const SizedBox(height: 16),
+            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Expanded(
+                child: _ControlButton(
+                  icon: Icons.camera_alt,
+                  label: 'Screenshot',
+                  color: Colors.indigo,
+                  busy: _busy,
+                  onTap: hasSession && !_busy ? () => _triggerScreenshot() : null,
+                ),
+              ),
             ]),
           ]),
         ),
@@ -98,17 +137,34 @@ class _ControlButton extends StatelessWidget {
   final IconData icon;
   final String label;
   final Color color;
+  final bool busy;
   final VoidCallback? onTap;
 
-  const _ControlButton({required this.icon, required this.label, required this.color, required this.onTap});
+  const _ControlButton({
+    required this.icon,
+    required this.label,
+    required this.color,
+    this.busy = false,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     return ElevatedButton.icon(
       onPressed: onTap,
-      icon: Icon(icon, color: Colors.white),
+      icon: busy
+          ? const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+            )
+          : Icon(icon, color: Colors.white),
       label: Text(label, style: const TextStyle(color: Colors.white)),
-      style: ElevatedButton.styleFrom(backgroundColor: color, padding: const EdgeInsets.symmetric(vertical: 14)),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: color,
+        padding: const EdgeInsets.symmetric(vertical: 18),
+        minimumSize: const Size.fromHeight(56),
+      ),
     );
   }
 }

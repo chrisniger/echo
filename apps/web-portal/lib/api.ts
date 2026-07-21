@@ -76,34 +76,60 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   if (response.status === 401) {
     const refreshToken = getRefreshToken();
     if (refreshToken) {
-      const refreshRes = await fetch(`${BASE_URL}/auth/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refreshToken }),
-      });
-      if (refreshRes.ok) {
-        const data = await refreshRes.json();
-        storeTokens(data.tokens);
-        headers['Authorization'] = `Bearer ${data.tokens.accessToken}`;
-        const retry = await fetch(url, {
-          ...init,
-          headers,
-          body: body ? JSON.stringify(body) : undefined,
+      try {
+        const refreshRes = await fetch(`${BASE_URL}/auth/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken }),
         });
-        if (!retry.ok) throw new ApiError(retry.status, await retry.text());
-        return retry.json();
+        if (refreshRes.ok) {
+          const data = await refreshRes.json();
+          storeTokens(data.tokens);
+          headers['Authorization'] = `Bearer ${data.tokens.accessToken}`;
+          const retry = await fetch(url, {
+            ...init,
+            headers,
+            body: body ? JSON.stringify(body) : undefined,
+          });
+          if (!retry.ok) {
+            const errorBody = await retry.json().catch(() => ({}));
+            const message =
+              (errorBody.error as string | undefined) ||
+              (errorBody.message as string | undefined) ||
+              retry.statusText;
+            throw new ApiError(retry.status, message, errorBody);
+          }
+          return retry.json();
+        }
+        // If refresh returned a non-401 error (e.g. 500), keep the current
+        // tokens and throw a transient error instead of forcing a logout.
+        if (refreshRes.status !== 401) {
+          const errorBody = await refreshRes.json().catch(() => ({}));
+          const message =
+            (errorBody.error as string | undefined) ||
+            (errorBody.message as string | undefined) ||
+            'Session verification temporarily unavailable. Please try again.';
+          throw new ApiError(refreshRes.status, message, errorBody);
+        }
+      } catch (err) {
+        if (err instanceof ApiError) throw err;
+        throw new ApiError(503, 'Network error. Please check your connection and try again.', {});
       }
     }
     clearTokens();
     if (typeof window !== 'undefined') {
       window.location.href = '/login';
     }
-    throw new ApiError(401, 'Unauthorized');
+    throw new ApiError(401, 'Session expired. Please sign in again.');
   }
 
   if (!response.ok) {
-    const text = await response.text();
-    throw new ApiError(response.status, text || response.statusText);
+    const errorBody = await response.json().catch(() => ({}));
+    const message =
+      (errorBody.error as string | undefined) ||
+      (errorBody.message as string | undefined) ||
+      response.statusText;
+    throw new ApiError(response.status, message, errorBody);
   }
 
   return response.json();

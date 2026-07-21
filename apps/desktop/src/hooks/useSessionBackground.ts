@@ -58,6 +58,7 @@ async function transcribeViaTauri(gatewayUrl?: string): Promise<TranscriptionRes
   try {
     const result = await invoke<TranscriptionResult>('transcribe_audio', {
       gatewayUrl: gatewayUrl ?? null,
+      accessToken: getAccessToken() ?? null,
     });
     return result;
   } catch (err) {
@@ -176,12 +177,14 @@ export function useSessionBackground({
       enabled: true,
       threshold: 0.7,
       responseDelayMs: 0,
+      cooldownMs: 15000,
       contextWindowSize: 30,
       enableFastRules: true,
       enablePatterns: true,
       enableContextMemory: true,
       enableClassifier: false,
       questionPatterns: [],
+      classifierModel: undefined,
     };
     const engineConfig: EngineConfig = {
       enabled: qd.enabled,
@@ -313,6 +316,7 @@ export function useSessionBackground({
         ws.send({
           action: 'transcript.update',
           data: {
+            id: segId,
             sessionId: session.id,
             speaker: i === 0 ? 'Interviewer' : 'Speaker',
             text,
@@ -458,6 +462,11 @@ export function useSessionBackground({
       if (stopped) return;
       if (!getAccessToken()) {
         log('No auth token yet, skipping transcription tick');
+        onCaptureStateChange?.({
+          isCapturing: false,
+          source: sourceRef.current,
+          error: 'Not authenticated',
+        });
         return;
       }
       const result = await transcribeViaTauri(gatewayUrl);

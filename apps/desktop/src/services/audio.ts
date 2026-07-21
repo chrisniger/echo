@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { getAccessToken } from '../lib/auth';
 
 export interface AudioDevice {
   name: string;
@@ -119,6 +120,7 @@ class AudioService {
     try {
       return await invoke<TranscriptionResult>('transcribe_audio', {
         gatewayUrl,
+        accessToken: getAccessToken() ?? null,
       });
     } catch (error) {
       console.error('Failed to transcribe audio:', error);

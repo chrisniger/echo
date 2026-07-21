@@ -81,6 +81,10 @@ export interface SessionUpdatedEvent {
   updatedFields: string[];
 }
 
+export interface ScreenshotTriggerEvent {
+  sessionId?: string;
+}
+
 export type WsEventPayload =
   | { type: 'transcript.update'; data: TranscriptUpdate }
   | { type: 'ai.response'; data: AiResponseEvent }
@@ -90,6 +94,7 @@ export type WsEventPayload =
   | { type: 'session.resume'; data: SessionEvent }
   | { type: 'session.end'; data: SessionEvent }
   | { type: 'session.updated'; data: SessionUpdatedEvent }
+  | { type: 'screenshot.trigger'; data: ScreenshotTriggerEvent }
   | { type: 'upload.complete'; data: UploadComplete }
   | { type: 'device.connected'; data: DeviceEvent }
   | { type: 'device.disconnected'; data: DeviceEvent }
@@ -105,7 +110,8 @@ export type ClientMessage =
   | { action: 'session.start'; data: SessionEvent }
   | { action: 'session.pause'; data: SessionEvent }
   | { action: 'session.resume'; data: SessionEvent }
-  | { action: 'session.end'; data: SessionEvent };
+  | { action: 'session.end'; data: SessionEvent }
+  | { action: 'screenshot.trigger'; data?: { sessionId?: string } };
 
 export interface HeartbeatInfo {
   lastPing: number;

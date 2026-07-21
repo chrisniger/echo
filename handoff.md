@@ -1502,6 +1502,94 @@ Flutter SDK is installed. Cloud API runs on port 4000.
 
 - The desktop/system loopback capture path is improved, but the Windows audio stack still needs real device testing.
 - Companion sync should now work once the Desktop WebSocket connection is established and the session room is subscribed.
+
+---
+
+## Screenshot Capture Fix Plan (In Progress)
+
+### Problem Statement
+
+The screenshot capture system is not working as intended:
+
+1. **Desktop app** — the Screenshot button captures the entire primary screen; there is no area-selection UI.
+2. **AI analysis** — the captured screenshot is sent to `/analyze-image`, which returns only a structured description. The result is pushed as a transcript segment, so it never appears in the AI response window.
+3. **Companion app** — the Controls screen only has Pause/Play and End buttons; there is no Screenshot button, and no way to trigger a desktop screenshot remotely.
+
+### Expected Outcome
+
+1. **Desktop area selection** — clicking Screenshot captures the full screen, then opens an cropping UI where the user drags to select a region. The selected region is sent to the AI for analysis.
+2. **AI response in chat window** — the screenshot analysis is routed through the standard chat pipeline (`/chat`), so the AI response is persisted as an `AiResponse` and appears in the AI Assistance panel (and on all connected devices via WebSocket).
+3. **Companion Screenshot button** — the Flutter Controls screen gets a Camera/Screenshot button. Tapping it sends a WebSocket message to the desktop, which then opens the area-selection UI.
+
+### Implementation Plan
+
+#### Phase A — Desktop Chat Vision Support
+
+1. **`packages/shared-types/src/session.ts`**
+   - Update `ChatMessage` so `content` can be `string | Array<{ type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } }>`.
+
+2. **`apps/ai-gateway/src/routes/chat.ts`**
+   - Update `chatRequestSchema.messages` to accept the new content array shape.
+   - Ensure the provider adapters receive image URLs correctly.
+
+3. **`apps/desktop/src/services/chatService.ts`**
+   - Add optional `imageBase64?: string` to `ChatRequestOptions`.
+   - When `imageBase64` is provided, format the final user message as an OpenAI-style content array with text + image_url.
+   - Keep existing persist + broadcast behavior so the response appears in the AI response window and on companion devices.
+
+#### Phase B — Desktop Area Selection UI
+
+4. **`apps/desktop/src/components/ScreenshotCapture.tsx`**
+   - After `captureScreenshot()`, show the captured image in a modal with a canvas overlay.
+   - Let the user drag to select a rectangular area.
+   - On confirm, crop the selected area to a base64 data URL.
+   - Call `askAssistant({ query: "Analyze this screenshot and help with anything shown.", imageBase64: croppedDataUrl })`.
+   - Remove the current `addTranscriptSegment` call that dumps the raw description into the transcript.
+   - Show loading/error states during capture, cropping, and AI analysis.
+
+5. **`apps/desktop/src/services/screenshot.ts`**
+   - Keep `captureScreenshot()` (full-screen capture via Tauri).
+   - Remove or deprecate `analyzeScreenshot()`; image analysis now goes through `/chat`.
+
+6. **`apps/desktop/src-tauri/src/screenshot.rs` / `lib.rs`**
+   - No changes required; full-screen capture is sufficient — cropping happens client-side.
+
+#### Phase C — Companion Screenshot Trigger
+
+7. **`apps/companion/lib/services/api_service.dart`**
+   - Add `triggerScreenshot()` that sends `{"action": "screenshot.trigger"}` over the WebSocket.
+
+8. **`apps/companion/lib/screens/controls_screen.dart`**
+   - Add a Camera/Screenshot button next to Pause/Play and End.
+   - Bind its `onTap` to `apiService.triggerScreenshot()`.
+
+9. **`apps/desktop/src/hooks/useWebSocket.ts`**
+   - Listen for `screenshot.trigger` events.
+   - When received, invoke the screenshot capture flow so the area-selection modal opens on the desktop.
+
+### Data Flow
+
+1. User clicks Screenshot (desktop) or the companion Screenshot button.
+2. Desktop captures the full screen via Tauri `take_screenshot`.
+3. Desktop displays the capture in a modal; user selects a region.
+4. Desktop extracts the cropped region as base64.
+5. Desktop calls `askAssistant({ query, imageBase64 })`.
+6. AI Gateway `/chat` sends text + image to a vision-capable model.
+7. `askAssistant` persists the `AiResponse` in the session store and broadcasts `ai.response` over WebSocket.
+8. AI Assistance panel and companion devices display the response.
+
+### Validation
+
+- TypeScript typecheck across `packages/shared-types`, `apps/ai-gateway`, and `apps/desktop`.
+- Run existing desktop tests (`pnpm test` in `apps/desktop`).
+- Manual verification: capture a region containing text/code, confirm the AI response appears in the AI Assistance panel.
+- Companion verification: tap Screenshot button and confirm the desktop area-selection modal opens.
+
+### Status
+
+- Phase A — Desktop Chat Vision Support: ✅ Done
+- Phase B — Desktop Area Selection UI: ✅ Done
+- Phase C — Companion Screenshot Trigger: ✅ Donescribed.
 - If you do another testing pass, start with:
   - Desktop login
   - New Session
@@ -1782,3 +1870,40 @@ This section reflects the live repository as of 2026-07-18. `apps/BACK_desktop_b
 
 - Existing sessions (created before this update) have `cv_content = NULL` and `documents_content = NULL`. `Session.cvContent?`, `Session.documents?` are both optional, and `ContextAssembler` skips empty sections. No migration of historical sessions is required.
 - `useCvStore.uploadCv`'s public signature changed from `Promise<void>` to `Promise<CvDocument | null>`. Anyone still using `void` (e.g. `CvLibrary`'s upload button) continues to compile — `void` is structurally compatible.
+
+## U16 - AI Gateway authentication
+
+### Summary
+
+Protected all AI Gateway endpoints (except health) with a dual authentication middleware that accepts either a valid JWT access token or a shared API key. Updated the desktop Tauri backend and the Cloud API gateway client to send credentials so transcription, chat, embeddings, CV parsing, image analysis, and classifier routes remain usable.
+
+### Files changed
+
+- `apps/ai-gateway/src/middleware/auth.ts` — new `requireAuth` middleware; validates `X-API-Key` header first, then falls back to `Authorization: Bearer <jwt>` verification using `JWT_SECRET`.
+- `apps/ai-gateway/src/config.ts` — loads `JWT_SECRET` and `AI_GATEWAY_API_KEY` from environment variables.
+- `apps/ai-gateway/src/index.ts` — mounts `requireAuth` before every `/api` router except the health router; logs a warning when `AI_GATEWAY_API_KEY` is not configured.
+- `apps/ai-gateway/src/routes/chat.ts` — removed the now-redundant `router.use(requireAuth)` call.
+- `apps/ai-gateway/package.json` — added `jsonwebtoken` dependency.
+- `apps/ai-gateway/.env.example` — documented `JWT_SECRET` and `AI_GATEWAY_API_KEY`.
+- `apps/desktop/src-tauri/src/transcribe.rs` — accepts an optional `access_token` and sends it in the `Authorization` header when calling `/api/transcribe`.
+- `apps/desktop/src-tauri/src/lib.rs` — `transcribe_audio` command now accepts `access_token: Option<String>`.
+- `apps/desktop/src/hooks/useSessionBackground.ts` — passes the current access token to the `transcribe_audio` Tauri command.
+- `apps/desktop/src/services/audio.ts` — passes the current access token to the `transcribe_audio` Tauri command.
+- `apps/cloud-api/src/services/gateway-client.ts` — sends `X-API-Key` header when `AI_GATEWAY_API_KEY` is configured.
+- `apps/cloud-api/src/config.ts` — loads `AI_GATEWAY_API_KEY` from environment variables.
+- `apps/cloud-api/src/index.ts` — logs a warning when `AI_GATEWAY_API_KEY` is not configured.
+
+### Validation
+
+- AI Gateway typecheck passes.
+- AI Gateway lint reports only pre-existing warnings.
+- Cloud API typecheck passes.
+- Desktop typecheck passes.
+- `cargo check` for the Tauri backend passes.
+
+### Notes
+
+- The health endpoint (`/api/health`) remains unauthenticated so load balancers and Docker health checks can reach it.
+- Server-to-server calls from Cloud API to AI Gateway use the shared API key.
+- Desktop-to-AI-Gateway calls (transcription) now use the user's JWT access token.
+- Both `AI_GATEWAY_API_KEY` and `JWT_SECRET` must be set consistently across Cloud API and AI Gateway environments.

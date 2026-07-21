@@ -4,7 +4,12 @@ import type { AiRouter } from '../services/router.js';
 import { ContextAssembler, SYSTEM_PROMPT_BASE } from '../services/context-assembler.js';
 import { TokenCounter } from '../services/token-counter.js';
 import type { PromptCache } from '../services/cache.js';
-import type { AiModel, ChatMessage } from '@echo-gpt/shared-types';
+import type { AiModel, ChatMessage, ChatRequest } from '@echo-gpt/shared-types';
+
+const contentPartSchema = z.union([
+  z.object({ type: z.literal('text'), text: z.string() }),
+  z.object({ type: z.literal('image_url'), image_url: z.object({ url: z.string() }) }),
+]);
 
 const chatRequestSchema = z.object({
   model: z.enum([
@@ -34,7 +39,7 @@ const chatRequestSchema = z.object({
   messages: z.array(
     z.object({
       role: z.enum(['system', 'user', 'assistant']),
-      content: z.string(),
+      content: z.union([z.string(), z.array(contentPartSchema)]),
     }),
   ),
   stream: z.boolean().optional().default(false),
@@ -79,7 +84,7 @@ export function createChatRouter(routerInstance: AiRouter, cache?: PromptCache):
   router.post('/chat', async (req, res) => {
     let requestedModel: string | undefined;
     try {
-      const parsed = chatRequestSchema.parse(req.body);
+      const parsed = chatRequestSchema.parse(req.body) as ChatRequest;
       requestedModel = parsed.model;
       const result = await routerInstance.chat(parsed, (req as any).signal);
       res.json(result);
@@ -89,7 +94,8 @@ export function createChatRouter(routerInstance: AiRouter, cache?: PromptCache):
       } else {
         const message = err instanceof Error ? err.message : 'Internal server error';
         console.error(`[Chat] ${requestedModel ?? 'unknown'} failed: ${message}`);
-        const isUpstream = /provider|model|API error|quota|rate.?limit|unavailable|not found|invalid/i.test(message);
+        const isUpstream =
+          /provider|model|API error|quota|rate.?limit|unavailable|not found|invalid/i.test(message);
         res.status(isUpstream ? 502 : 500).json({
           error: message,
           model: requestedModel,
@@ -100,7 +106,7 @@ export function createChatRouter(routerInstance: AiRouter, cache?: PromptCache):
 
   router.post('/chat/stream', async (req, res) => {
     try {
-      const parsed = chatRequestSchema.parse(req.body);
+      const parsed = chatRequestSchema.parse(req.body) as ChatRequest;
 
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
