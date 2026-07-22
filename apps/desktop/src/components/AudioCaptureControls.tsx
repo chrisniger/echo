@@ -176,7 +176,7 @@ export default function AudioCaptureControls({ sessionId: _sessionId }: AudioCap
           </p>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-zinc-300">Source</label>
+            <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Source</label>
             <Select
               value={selectedSource}
               onValueChange={handleSourceChange}
@@ -202,7 +202,9 @@ export default function AudioCaptureControls({ sessionId: _sessionId }: AudioCap
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-zinc-300">Transcription Interval</label>
+            <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              Transcription Interval
+            </label>
             <Select
               value={String(selectedInterval)}
               onValueChange={handleIntervalChange}
@@ -232,7 +234,7 @@ export default function AudioCaptureControls({ sessionId: _sessionId }: AudioCap
               <AlertCircle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
               <div className="text-xs text-amber-300 space-y-1">
                 <p>{preflight.hint}</p>
-                <p className="text-zinc-400">
+                <p className="text-zinc-500 dark:text-zinc-400">
                   On Windows: Settings → Privacy &amp; security → Microphone → enable "Let desktop
                   apps access your microphone".
                 </p>
@@ -245,7 +247,7 @@ export default function AudioCaptureControls({ sessionId: _sessionId }: AudioCap
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
-            <RefreshCw className="h-4 w-4 text-zinc-400" />
+            <RefreshCw className="h-4 w-4 text-zinc-500 dark:text-zinc-400" />
             Detected Devices
           </CardTitle>
         </CardHeader>
@@ -257,7 +259,10 @@ export default function AudioCaptureControls({ sessionId: _sessionId }: AudioCap
             ) : (
               <ul className="space-y-1">
                 {inputDevices.map((d) => (
-                  <li key={d.name} className="text-xs text-zinc-300 flex items-center gap-2">
+                  <li
+                    key={d.name}
+                    className="text-xs text-zinc-700 dark:text-zinc-300 flex items-center gap-2"
+                  >
                     <Mic className="h-3 w-3 text-zinc-500" />
                     <span className="truncate">{d.name}</span>
                     {d.is_default && (
@@ -281,7 +286,10 @@ export default function AudioCaptureControls({ sessionId: _sessionId }: AudioCap
             ) : (
               <ul className="space-y-1">
                 {outputDevices.map((d) => (
-                  <li key={d.name} className="text-xs text-zinc-300 flex items-center gap-2">
+                  <li
+                    key={d.name}
+                    className="text-xs text-zinc-700 dark:text-zinc-300 flex items-center gap-2"
+                  >
                     <Volume2 className="h-3 w-3 text-zinc-500" />
                     <span className="truncate">{d.name}</span>
                     {d.is_default && (

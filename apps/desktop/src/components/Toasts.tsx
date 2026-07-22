@@ -41,13 +41,20 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
         VARIANT_CLASSES[variant],
       )}
     >
-      <div className={cn('mt-0.5 flex h-7 w-7 flex-none items-center justify-center rounded-full bg-zinc-950/60', VARIANT_TEXT[variant])}>
+      <div
+        className={cn(
+          'mt-0.5 flex h-7 w-7 flex-none items-center justify-center rounded-full bg-zinc-950/60',
+          VARIANT_TEXT[variant],
+        )}
+      >
         <Icon className="h-4 w-4" />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold text-zinc-100">{toast.title}</p>
+        <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{toast.title}</p>
         {toast.description && (
-          <p className="mt-0.5 text-xs leading-relaxed text-zinc-300">{toast.description}</p>
+          <p className="mt-0.5 text-xs leading-relaxed text-zinc-700 dark:text-zinc-300">
+            {toast.description}
+          </p>
         )}
       </div>
       <button

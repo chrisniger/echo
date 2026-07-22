@@ -17,7 +17,7 @@ export default function OfflineIndicator() {
   };
 
   return (
-    <Card className="border-zinc-800">
+    <Card className="border-zinc-200 dark:border-zinc-800">
       <CardContent className="p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -28,7 +28,7 @@ export default function OfflineIndicator() {
             )}
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-zinc-100">
+                <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
                   {isOnline ? 'Online' : 'Offline'}
                 </span>
                 <Badge variant={isOnline ? 'default' : 'secondary'}>
@@ -44,21 +44,11 @@ export default function OfflineIndicator() {
           </div>
 
           <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={checkStatus}
-              disabled={isSyncing}
-            >
+            <Button variant="outline" size="sm" onClick={checkStatus} disabled={isSyncing}>
               <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
             </Button>
             {pendingItems > 0 && (
-              <Button
-                variant="default"
-                size="sm"
-                onClick={sync}
-                disabled={isSyncing || !isOnline}
-              >
+              <Button variant="default" size="sm" onClick={sync} disabled={isSyncing || !isOnline}>
                 {isSyncing ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />

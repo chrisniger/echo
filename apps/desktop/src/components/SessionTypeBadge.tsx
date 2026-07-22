@@ -1,4 +1,15 @@
-import { Briefcase, Code2, GraduationCap, Headphones, Lightbulb, MessageSquare, Sparkles, TrendingUp, UserRound, Users } from 'lucide-react';
+import {
+  Briefcase,
+  Code2,
+  GraduationCap,
+  Headphones,
+  Lightbulb,
+  MessageSquare,
+  Sparkles,
+  TrendingUp,
+  UserRound,
+  Users,
+} from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { SessionType } from '@echo-gpt/shared-types';
 import { Badge } from './ui/badge';
@@ -22,7 +33,10 @@ import { Badge } from './ui/badge';
  *   3. A matching entry in apps/companion/lib/screens/transcript_screen.dart
  *      SESSION_TYPE_COLORS so the mobile surface matches.
  */
-const SESSION_TYPE_META: Record<SessionType, { Icon: LucideIcon; label: SessionType; classes: string }> = {
+const SESSION_TYPE_META: Record<
+  SessionType,
+  { Icon: LucideIcon; label: SessionType; classes: string }
+> = {
   Interview: {
     Icon: UserRound,
     label: 'Interview',
@@ -66,7 +80,7 @@ const SESSION_TYPE_META: Record<SessionType, { Icon: LucideIcon; label: SessionT
   General: {
     Icon: Sparkles,
     label: 'General',
-    classes: 'bg-zinc-500/15 text-zinc-300 border-zinc-500/30',
+    classes: 'bg-zinc-500/15 text-zinc-700 dark:text-zinc-300 border-zinc-500/30',
   },
 };
 
@@ -98,8 +112,7 @@ export function SessionTypeBadge({
   const meta = SESSION_TYPE_META[type];
   const Icon = meta.Icon;
   const label = (shortLabel ?? SHORT_LABELS)[type] ?? meta.label;
-  const sizing =
-    size === 'md' ? 'text-sm px-3 py-1.5 gap-2' : 'text-xs px-2 py-0.5 gap-1.5';
+  const sizing = size === 'md' ? 'text-sm px-3 py-1.5 gap-2' : 'text-xs px-2 py-0.5 gap-1.5';
 
   return (
     <span

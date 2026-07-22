@@ -99,7 +99,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium text-emerald-400">Active Session</p>
-                <p className="text-xs text-zinc-400 truncate">{currentSession.name}</p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
+                  {currentSession.name}
+                </p>
               </div>
             </div>
             <Button

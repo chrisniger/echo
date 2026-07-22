@@ -2,7 +2,15 @@ import { useState } from 'react';
 import { Download, FileJson, FileText, FileCode, Subtitles, Check } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Button } from './ui/button';
-import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
+import {
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from './ui/dialog';
 import { Switch } from './ui/switch';
 import { Label } from './ui/label';
 import type { Session, TranscriptSegment, AiResponse } from '@echo-gpt/shared-types';
@@ -16,18 +24,58 @@ interface IncludeOption {
   defaultEnabled: boolean;
 }
 
-const formats: { value: ExportFormat; label: string; icon: React.ReactNode; description: string }[] = [
-  { value: 'json', label: 'JSON', icon: <FileJson className="h-4 w-4" />, description: 'Machine-readable format' },
-  { value: 'pdf', label: 'PDF', icon: <FileText className="h-4 w-4" />, description: 'Document format' },
+const formats: {
+  value: ExportFormat;
+  label: string;
+  icon: React.ReactNode;
+  description: string;
+}[] = [
+  {
+    value: 'json',
+    label: 'JSON',
+    icon: <FileJson className="h-4 w-4" />,
+    description: 'Machine-readable format',
+  },
+  {
+    value: 'pdf',
+    label: 'PDF',
+    icon: <FileText className="h-4 w-4" />,
+    description: 'Document format',
+  },
   { value: 'txt', label: 'TXT', icon: <FileCode className="h-4 w-4" />, description: 'Plain text' },
-  { value: 'srt', label: 'SRT', icon: <Subtitles className="h-4 w-4" />, description: 'Subtitle format for transcripts' },
+  {
+    value: 'srt',
+    label: 'SRT',
+    icon: <Subtitles className="h-4 w-4" />,
+    description: 'Subtitle format for transcripts',
+  },
 ];
 
 const includeOptions: IncludeOption[] = [
-  { key: 'transcript', label: 'Transcript', icon: <Subtitles className="h-4 w-4" />, defaultEnabled: true },
-  { key: 'responses', label: 'AI Responses', icon: <FileCode className="h-4 w-4" />, defaultEnabled: true },
-  { key: 'screenshots', label: 'Screenshots', icon: <FileText className="h-4 w-4" />, defaultEnabled: false },
-  { key: 'summary', label: 'Summary', icon: <FileText className="h-4 w-4" />, defaultEnabled: true },
+  {
+    key: 'transcript',
+    label: 'Transcript',
+    icon: <Subtitles className="h-4 w-4" />,
+    defaultEnabled: true,
+  },
+  {
+    key: 'responses',
+    label: 'AI Responses',
+    icon: <FileCode className="h-4 w-4" />,
+    defaultEnabled: true,
+  },
+  {
+    key: 'screenshots',
+    label: 'Screenshots',
+    icon: <FileText className="h-4 w-4" />,
+    defaultEnabled: false,
+  },
+  {
+    key: 'summary',
+    label: 'Summary',
+    icon: <FileText className="h-4 w-4" />,
+    defaultEnabled: true,
+  },
 ];
 
 interface SessionExportProps {
@@ -36,7 +84,11 @@ interface SessionExportProps {
   aiResponses?: AiResponse[];
 }
 
-export default function SessionExport({ session, transcript = [], aiResponses = [] }: SessionExportProps) {
+export default function SessionExport({
+  session,
+  transcript = [],
+  aiResponses = [],
+}: SessionExportProps) {
   const [format, setFormat] = useState<ExportFormat>('json');
   const [includes, setIncludes] = useState<Record<string, boolean>>(
     Object.fromEntries(includeOptions.map((opt) => [opt.key, opt.defaultEnabled])),
@@ -48,7 +100,7 @@ export default function SessionExport({ session, transcript = [], aiResponses = 
     const minutes = Math.floor((seconds % 3600) / 60);
     const secs = Math.floor(seconds % 60);
     const ms = Math.floor((seconds % 1) * 1000);
-    
+
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')},${ms.toString().padStart(3, '0')}`;
   };
 
@@ -164,34 +216,50 @@ export default function SessionExport({ session, transcript = [], aiResponses = 
         <p><strong>Duration:</strong> ${session.duration} minutes</p>
         <p><strong>Model:</strong> ${session.aiModel}</p>
         
-        ${includes.summary && session.summary ? `
+        ${
+          includes.summary && session.summary
+            ? `
           <div class="section">
             <h2>Summary</h2>
             <p>${session.summary}</p>
           </div>
-        ` : ''}
+        `
+            : ''
+        }
         
-        ${includes.transcript && transcript.length > 0 ? `
+        ${
+          includes.transcript && transcript.length > 0
+            ? `
           <div class="section">
             <h2>Transcript</h2>
             <div class="transcript">
-              ${transcript.map(seg => `<p><span class="speaker">${seg.speakerLabel}:</span> ${seg.text}</p>`).join('')}
+              ${transcript.map((seg) => `<p><span class="speaker">${seg.speakerLabel}:</span> ${seg.text}</p>`).join('')}
             </div>
           </div>
-        ` : ''}
+        `
+            : ''
+        }
         
-        ${includes.responses && aiResponses.length > 0 ? `
+        ${
+          includes.responses && aiResponses.length > 0
+            ? `
           <div class="section">
             <h2>AI Responses</h2>
-            ${aiResponses.map(resp => `
+            ${aiResponses
+              .map(
+                (resp) => `
               <div style="margin-bottom: 20px;">
                 <p><strong>Query:</strong> ${resp.query}</p>
                 <p><strong>Response:</strong> ${resp.response}</p>
                 <p><small>Model: ${resp.model} | Tokens: ${resp.tokensUsed}</small></p>
               </div>
-            `).join('')}
+            `,
+              )
+              .join('')}
           </div>
-        ` : ''}
+        `
+            : ''
+        }
       </body>
       </html>
     `;
@@ -252,9 +320,7 @@ export default function SessionExport({ session, transcript = [], aiResponses = 
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Export Session</DialogTitle>
-          <DialogDescription>
-            Choose format and content to include in the export
-          </DialogDescription>
+          <DialogDescription>Choose format and content to include in the export</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -269,19 +335,23 @@ export default function SessionExport({ session, transcript = [], aiResponses = 
                     'flex items-center gap-2 rounded-md border p-3 text-left transition-colors',
                     format === f.value
                       ? 'border-indigo-500 bg-indigo-500/10'
-                      : 'border-zinc-800 bg-zinc-900 hover:border-zinc-700',
+                      : 'border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-zinc-300 dark:hover:border-zinc-700',
                   )}
                 >
-                  <div className={cn(format === f.value ? 'text-indigo-500' : 'text-zinc-400')}>
+                  <div
+                    className={cn(
+                      format === f.value ? 'text-indigo-500' : 'text-zinc-500 dark:text-zinc-400',
+                    )}
+                  >
                     {f.icon}
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-zinc-100">{f.label}</p>
+                    <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                      {f.label}
+                    </p>
                     <p className="text-xs text-zinc-500">{f.description}</p>
                   </div>
-                  {format === f.value && (
-                    <Check className="ml-auto h-4 w-4 text-indigo-500" />
-                  )}
+                  {format === f.value && <Check className="ml-auto h-4 w-4 text-indigo-500" />}
                 </button>
               ))}
             </div>
@@ -291,16 +361,17 @@ export default function SessionExport({ session, transcript = [], aiResponses = 
             <Label className="mb-2 block">Include</Label>
             <div className="space-y-2">
               {includeOptions.map((opt) => (
-                <div key={opt.key} className="flex items-center justify-between rounded-md bg-zinc-800/50 px-3 py-2">
+                <div
+                  key={opt.key}
+                  className="flex items-center justify-between rounded-md bg-zinc-50/50 dark:bg-zinc-800/50 px-3 py-2"
+                >
                   <div className="flex items-center gap-2">
-                    <span className="text-zinc-400">{opt.icon}</span>
-                    <span className="text-sm text-zinc-300">{opt.label}</span>
+                    <span className="text-zinc-500 dark:text-zinc-400">{opt.icon}</span>
+                    <span className="text-sm text-zinc-700 dark:text-zinc-300">{opt.label}</span>
                   </div>
                   <Switch
                     checked={includes[opt.key]}
-                    onCheckedChange={(v) =>
-                      setIncludes((prev) => ({ ...prev, [opt.key]: v }))
-                    }
+                    onCheckedChange={(v) => setIncludes((prev) => ({ ...prev, [opt.key]: v }))}
                   />
                 </div>
               ))}
@@ -309,7 +380,9 @@ export default function SessionExport({ session, transcript = [], aiResponses = 
         </div>
 
         <DialogFooter>
-          <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+          <Button variant="ghost" onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
           <Button onClick={handleExport} className="gap-2">
             <Download className="h-4 w-4" />
             Export

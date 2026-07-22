@@ -64,13 +64,15 @@ export default function TranslationPanel() {
               </SelectTrigger>
               <SelectContent>
                 {languages.map((l) => (
-                  <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>
+                  <SelectItem key={l.value} value={l.value}>
+                    {l.label}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <Button variant="ghost" size="icon" onClick={handleSwap} className="mb-0.5">
-            <ArrowRightLeft className="h-4 w-4 text-zinc-400" />
+            <ArrowRightLeft className="h-4 w-4 text-zinc-500 dark:text-zinc-400" />
           </Button>
           <div className="flex-1">
             <Label className="mb-1 block">To</Label>
@@ -80,7 +82,9 @@ export default function TranslationPanel() {
               </SelectTrigger>
               <SelectContent>
                 {languages.map((l) => (
-                  <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>
+                  <SelectItem key={l.value} value={l.value}>
+                    {l.label}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -107,7 +111,7 @@ export default function TranslationPanel() {
                   'flex-1 rounded-md border px-3 py-2 text-sm transition-colors',
                   mode === opt.value
                     ? 'border-indigo-500 bg-indigo-500/10 text-indigo-400'
-                    : 'border-zinc-800 bg-zinc-900 text-zinc-400 hover:border-zinc-700',
+                    : 'border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-500 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-700',
                 )}
               >
                 {opt.label}
@@ -116,7 +120,7 @@ export default function TranslationPanel() {
           </div>
         </div>
 
-        <div className="flex items-center justify-between rounded-lg bg-zinc-800/50 px-4 py-3">
+        <div className="flex items-center justify-between rounded-lg bg-zinc-50/50 dark:bg-zinc-800/50 px-4 py-3">
           <div>
             <Label>Auto-translate</Label>
             <p className="text-xs text-zinc-500">Real-time translation of incoming transcript</p>

@@ -53,16 +53,19 @@ export default function Transcript({ segment }: TranscriptProps) {
   };
 
   return (
-    <div className="group rounded-lg border border-zinc-800 bg-zinc-900/50 p-4 transition-colors hover:border-zinc-700">
+    <div className="group rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-100/50 dark:bg-zinc-900/50 p-4 transition-colors hover:border-zinc-300 dark:hover:border-zinc-700">
       <div className="mb-2 flex items-center gap-2">
         <div className={cn('h-2.5 w-2.5 rounded-full', getConfidenceColor(segment.confidence))} />
-        <span className={cn('inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium text-white', getSpeakerColor(segment.speakerId))}>
+        <span
+          className={cn(
+            'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium text-white',
+            getSpeakerColor(segment.speakerId),
+          )}
+        >
           {segment.speakerLabel}
         </span>
         <span className="text-xs text-zinc-500">{formatTimestamp(segment.startTime)}</span>
-        {segment.isEdited && (
-          <span className="text-xs text-zinc-500 italic">(edited)</span>
-        )}
+        {segment.isEdited && <span className="text-xs text-zinc-500 italic">(edited)</span>}
         <div className="flex-1" />
         {!isEditing && (
           <Button
@@ -81,7 +84,7 @@ export default function Transcript({ segment }: TranscriptProps) {
           <textarea
             value={editText}
             onChange={(e) => setEditText(e.target.value)}
-            className="w-full rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             rows={3}
           />
           <div className="flex gap-2">
@@ -96,7 +99,7 @@ export default function Transcript({ segment }: TranscriptProps) {
           </div>
         </div>
       ) : (
-        <p className="text-sm text-zinc-300 leading-relaxed">{segment.text}</p>
+        <p className="text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed">{segment.text}</p>
       )}
     </div>
   );

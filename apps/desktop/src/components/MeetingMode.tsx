@@ -1,5 +1,15 @@
 import { useState, useRef, useCallback } from 'react';
-import { ListChecks, Target, Clock, Sparkles, Plus, CheckCircle2, Circle, Timer, FileText } from 'lucide-react';
+import {
+  ListChecks,
+  Target,
+  Clock,
+  Sparkles,
+  Plus,
+  CheckCircle2,
+  Circle,
+  Timer,
+  FileText,
+} from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Button } from './ui/button';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from './ui/card';
@@ -32,7 +42,13 @@ export default function MeetingMode() {
     { id: '2', text: 'Discuss sprint goals', completed: false },
   ]);
   const [actions, setActions] = useState<ActionItem[]>([
-    { id: 'a1', text: 'Update the API documentation', assignee: 'Alex', completed: false, autoExtracted: true },
+    {
+      id: 'a1',
+      text: 'Update the API documentation',
+      assignee: 'Alex',
+      completed: false,
+      autoExtracted: true,
+    },
     { id: 'a2', text: 'Schedule follow-up meeting', completed: false, autoExtracted: true },
   ]);
   const [decisions, setDecisions] = useState<DecisionEntry[]>([
@@ -47,17 +63,13 @@ export default function MeetingMode() {
 
   const toggleAgenda = (id: string) => {
     setAgenda((prev) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, completed: !item.completed } : item,
-      ),
+      prev.map((item) => (item.id === id ? { ...item, completed: !item.completed } : item)),
     );
   };
 
   const toggleAction = (id: string) => {
     setActions((prev) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, completed: !item.completed } : item,
-      ),
+      prev.map((item) => (item.id === id ? { ...item, completed: !item.completed } : item)),
     );
   };
 
@@ -128,10 +140,10 @@ export default function MeetingMode() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="flex items-center justify-between rounded-lg bg-zinc-800 p-3">
+        <div className="flex items-center justify-between rounded-lg bg-zinc-100 dark:bg-zinc-800 p-3">
           <div className="flex items-center gap-2">
-            <Timer className="h-5 w-5 text-zinc-400" />
-            <span className="text-lg font-mono font-bold text-zinc-100">
+            <Timer className="h-5 w-5 text-zinc-500 dark:text-zinc-400" />
+            <span className="text-lg font-mono font-bold text-zinc-900 dark:text-zinc-100">
               {formatTimer(timerSeconds)}
             </span>
           </div>
@@ -156,14 +168,14 @@ export default function MeetingMode() {
         <div>
           <div className="flex items-center gap-2 mb-2">
             <Target className="h-4 w-4 text-emerald-500" />
-            <span className="text-sm font-medium text-zinc-300">Agenda</span>
+            <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Agenda</span>
           </div>
           <div className="space-y-1">
             {agenda.map((item) => (
               <button
                 key={item.id}
                 onClick={() => toggleAgenda(item.id)}
-                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-zinc-800 transition-colors"
+                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
               >
                 {item.completed ? (
                   <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
@@ -175,7 +187,7 @@ export default function MeetingMode() {
                     'text-sm',
                     item.completed
                       ? 'text-zinc-500 line-through'
-                      : 'text-zinc-300',
+                      : 'text-zinc-700 dark:text-zinc-300',
                   )}
                 >
                   {item.text}
@@ -200,14 +212,16 @@ export default function MeetingMode() {
         <div>
           <div className="flex items-center gap-2 mb-2">
             <ListChecks className="h-4 w-4 text-amber-500" />
-            <span className="text-sm font-medium text-zinc-300">Action Items</span>
+            <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              Action Items
+            </span>
           </div>
           <div className="space-y-1">
             {actions.map((item) => (
               <button
                 key={item.id}
                 onClick={() => toggleAction(item.id)}
-                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-zinc-800 transition-colors"
+                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
               >
                 {item.completed ? (
                   <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
@@ -219,17 +233,17 @@ export default function MeetingMode() {
                     'flex-1 text-sm',
                     item.completed
                       ? 'text-zinc-500 line-through'
-                      : 'text-zinc-300',
+                      : 'text-zinc-700 dark:text-zinc-300',
                   )}
                 >
                   {item.text}
                 </span>
                 {item.autoExtracted && (
-                  <Badge variant="warning" className="text-xs">Auto</Badge>
+                  <Badge variant="warning" className="text-xs">
+                    Auto
+                  </Badge>
                 )}
-                {item.assignee && (
-                  <span className="text-xs text-zinc-500">@{item.assignee}</span>
-                )}
+                {item.assignee && <span className="text-xs text-zinc-500">@{item.assignee}</span>}
               </button>
             ))}
           </div>
@@ -250,7 +264,9 @@ export default function MeetingMode() {
         <div>
           <div className="flex items-center gap-2 mb-2">
             <FileText className="h-4 w-4 text-blue-500" />
-            <span className="text-sm font-medium text-zinc-300">Decisions Log</span>
+            <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              Decisions Log
+            </span>
           </div>
           <div className="space-y-1">
             {decisions.length === 0 ? (
@@ -260,7 +276,7 @@ export default function MeetingMode() {
                 <div key={d.id} className="flex items-start gap-2 rounded-md px-3 py-2">
                   <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-blue-500" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-zinc-300">{d.text}</p>
+                    <p className="text-sm text-zinc-700 dark:text-zinc-300">{d.text}</p>
                     <p className="text-xs text-zinc-500">{formatTime(d.timestamp)}</p>
                   </div>
                 </div>
@@ -270,11 +286,7 @@ export default function MeetingMode() {
         </div>
       </CardContent>
       <CardFooter>
-        <Button
-          onClick={handleGenerateSummary}
-          disabled={isGenerating}
-          className="w-full gap-2"
-        >
+        <Button onClick={handleGenerateSummary} disabled={isGenerating} className="w-full gap-2">
           <Sparkles className="h-4 w-4" />
           {isGenerating ? 'Generating...' : 'Generate Summary'}
         </Button>

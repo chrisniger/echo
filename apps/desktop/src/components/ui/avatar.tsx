@@ -23,7 +23,12 @@ function Avatar({ className, src, alt, fallback, size = 'md', status, ...props }
   };
 
   const initials = fallback
-    ? fallback.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
+    ? fallback
+        .split(' ')
+        .map((n) => n[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2)
     : '?';
 
   return (
@@ -37,7 +42,7 @@ function Avatar({ className, src, alt, fallback, size = 'md', status, ...props }
       ) : (
         <div
           className={cn(
-            'flex items-center justify-center rounded-full bg-zinc-800 font-medium text-zinc-400',
+            'flex items-center justify-center rounded-full bg-zinc-100 dark:bg-zinc-800 font-medium text-zinc-500 dark:text-zinc-400',
             sizeClasses[size],
           )}
         >

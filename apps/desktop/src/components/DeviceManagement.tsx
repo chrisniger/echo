@@ -161,7 +161,7 @@ export function DeviceManagement() {
                 {!activeCode ? (
                   <>
                     <div className="space-y-3">
-                      <p className="text-sm text-zinc-400">
+                      <p className="text-sm text-zinc-500 dark:text-zinc-400">
                         Option 1: Generate a code from desktop
                       </p>
                       <Input
@@ -180,14 +180,16 @@ export function DeviceManagement() {
                     </div>
                     <div className="relative">
                       <div className="absolute inset-0 flex items-center">
-                        <span className="w-full border-t border-zinc-700" />
+                        <span className="w-full border-t border-zinc-300 dark:border-zinc-700" />
                       </div>
                       <div className="relative flex justify-center text-xs uppercase">
                         <span className="bg-zinc-950 px-2 text-zinc-500">Or</span>
                       </div>
                     </div>
                     <div className="space-y-3">
-                      <p className="text-sm text-zinc-400">Option 2: Enter code from phone</p>
+                      <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                        Option 2: Enter code from phone
+                      </p>
                       <Input
                         placeholder="Enter 6-character code"
                         value={phoneCode}
@@ -207,8 +209,8 @@ export function DeviceManagement() {
                   </>
                 ) : (
                   <div className="space-y-4">
-                    <div className="p-4 bg-zinc-800 rounded-lg text-center">
-                      <p className="text-sm text-zinc-400 mb-2">
+                    <div className="p-4 bg-zinc-100 dark:bg-zinc-800 rounded-lg text-center">
+                      <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-2">
                         Share this code with your device:
                       </p>
                       <p className="text-3xl font-mono font-bold tracking-widest text-green-400">
@@ -223,7 +225,7 @@ export function DeviceManagement() {
                         <img
                           src={qrDataUrl}
                           alt="QR code for companion pairing"
-                          className="rounded-lg border border-zinc-700 bg-white p-2"
+                          className="rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white p-2"
                           width={240}
                           height={240}
                         />
@@ -266,7 +268,7 @@ export function DeviceManagement() {
 
       {pendingPairings.length > 0 && (
         <div className="space-y-2">
-          <h4 className="text-sm font-medium text-zinc-400">Pending Requests</h4>
+          <h4 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Pending Requests</h4>
           {pendingPairings.map((pairing) => (
             <Card key={pairing.id} className="bg-yellow-900/20 border-yellow-800/50">
               <CardContent className="flex items-center justify-between p-4">
@@ -316,7 +318,10 @@ export function DeviceManagement() {
       ) : (
         <div className="space-y-2">
           {devices.map((device: PairedDevice) => (
-            <Card key={device.id} className="bg-zinc-900 border-zinc-800">
+            <Card
+              key={device.id}
+              className="bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800"
+            >
               <CardContent className="flex items-center justify-between p-4">
                 <div className="flex items-center gap-3">
                   <PlatformIcon platform={device.platform} />
