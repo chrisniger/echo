@@ -228,6 +228,128 @@ describe('useSessionStore', () => {
     });
   });
 
+  describe('fetchSessions merge logic (server + locally-cached)', () => {
+    let pushToast: ReturnType<typeof vi.fn>;
+
+    beforeEach(() => {
+      pushToast = useToastStore.getState().pushToast as unknown as ReturnType<typeof vi.fn>;
+      pushToast.mockClear();
+    });
+
+    it('preserves locally-cached sessions when the server returns an empty array (don’t wipe history)', async () => {
+      // The bug the user reported: local cache had real sessions, GET /sessions
+      // returned [] (e.g. fresh account, DB reset, JWT pointing at a different
+      // DB), and the previous implementation blindly wrote [] to localStorage.
+      // Now we MUST keep the local entries so the user doesn’t lose history.
+      const localOnly = makeSession({ id: 'local-only-1' });
+      useSessionStore.setState({ sessions: [localOnly] });
+      vi.mocked(api.get).mockResolvedValueOnce({ sessions: [] });
+
+      await useSessionStore.getState().fetchSessions();
+
+      expect(useSessionStore.getState().sessions).toEqual([localOnly]);
+      expect(pushToast).not.toHaveBeenCalled();
+    });
+
+    it('replaces empty local cache with the server list', async () => {
+      const serverOne = makeSession({ id: 'server-one' });
+      const serverTwo = makeSession({ id: 'server-two' });
+      vi.mocked(api.get).mockResolvedValueOnce({ sessions: [serverOne, serverTwo] });
+
+      await useSessionStore.getState().fetchSessions();
+
+      expect(useSessionStore.getState().sessions).toEqual([serverOne, serverTwo]);
+    });
+
+    it('unions server + locally-cached sessions when the ids are disjoint', async () => {
+      // Server knows about A only; local cache has B only. Merge shows both
+      // — important when an offline-created session hasn’t yet round-tripped.
+      const localOnly = makeSession({ id: 'local-only-1' });
+      const serverOnly = makeSession({ id: 'server-only-1' });
+      useSessionStore.setState({ sessions: [localOnly] });
+      vi.mocked(api.get).mockResolvedValueOnce({ sessions: [serverOnly] });
+
+      await useSessionStore.getState().fetchSessions();
+
+      const ids = useSessionStore
+        .getState()
+        .sessions.map((s) => s.id)
+        .sort();
+      expect(ids).toEqual(['local-only-1', 'server-only-1']);
+    });
+
+    it('lets the server row win for matching ids (canonical state from cloud-api)', async () => {
+      // If the user ended a session locally but the cloud row already knows
+      // about it with a richer representation, the server value overwrites.
+      const localStale = makeSession({ id: 'shared', status: 'active', duration: 0 });
+      const serverCanonical = makeSession({ id: 'shared', status: 'ended', duration: 17 });
+      useSessionStore.setState({ sessions: [localStale] });
+      vi.mocked(api.get).mockResolvedValueOnce({ sessions: [serverCanonical] });
+
+      await useSessionStore.getState().fetchSessions();
+
+      const state = useSessionStore.getState();
+      expect(state.sessions).toHaveLength(1);
+      expect(state.sessions[0]).toEqual(serverCanonical);
+    });
+
+    it('preserves the local cache unchanged and surfaces a toast when the API errors', async () => {
+      const localOnly = makeSession({ id: 'local-only-1' });
+      useSessionStore.setState({ sessions: [localOnly] });
+      vi.mocked(api.get).mockRejectedValueOnce(new Error('Network error'));
+
+      await useSessionStore.getState().fetchSessions();
+
+      const state = useSessionStore.getState();
+      expect(state.sessions).toEqual([localOnly]);
+      expect(state.isLoading).toBe(false);
+      expect(pushToast).toHaveBeenCalledTimes(1);
+      expect(pushToast.mock.calls[0][0].title).toBe('History unavailable');
+    });
+
+    it('sorts the merged list by startedAt DESC (newest first) — local-only rows interleave correctly', async () => {
+      const localOnly = makeSession({
+        id: 'local-only-newest',
+        startedAt: '2024-06-01T12:00:00.000Z',
+      });
+      const serverA = makeSession({
+        id: 'server-old',
+        startedAt: '2024-01-01T12:00:00.000Z',
+      });
+      const serverB = makeSession({
+        id: 'server-new',
+        startedAt: '2024-05-01T12:00:00.000Z',
+      });
+      useSessionStore.setState({ sessions: [localOnly] });
+      // Server returns oldest-first to make sure the sort, not the server
+      // order, drives the final array order.
+      vi.mocked(api.get).mockResolvedValueOnce({ sessions: [serverA, serverB] });
+
+      await useSessionStore.getState().fetchSessions();
+
+      const ids = useSessionStore.getState().sessions.map((s) => s.id);
+      expect(ids).toEqual(['local-only-newest', 'server-new', 'server-old']);
+    });
+
+    it('survives a malformed server payload (sessions: null) without wiping local cache or throwing', async () => {
+      const localOnly = makeSession({ id: 'local-only-1' });
+      useSessionStore.setState({ sessions: [localOnly] });
+      // Simulate a server regression where the field is null. Cast through
+      // unknown so TypeScript doesn't reject the deliberate malformation.
+      vi.mocked(api.get).mockResolvedValueOnce({ sessions: null } as unknown as {
+        sessions: Session[];
+      });
+
+      await expect(useSessionStore.getState().fetchSessions()).resolves.toBeUndefined();
+
+      const state = useSessionStore.getState();
+      // Local cache is preserved — the bug the user reported doesn't recur
+      // even if the server misbehaves.
+      expect(state.sessions).toEqual([localOnly]);
+      expect(state.isLoading).toBe(false);
+    });
+  });
+
   describe('404 server responses (session is gone from cloud-api)', () => {
     beforeEach(() => {
       useSessionStore.setState({

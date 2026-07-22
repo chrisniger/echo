@@ -399,7 +399,53 @@ export const useSessionStore = create<SessionState>()(
         set({ isLoading: true });
         try {
           const res = await api.get<{ sessions: Session[] }>('/sessions');
-          set({ sessions: res.sessions, isLoading: false });
+          // Merge the server's sessions with any locally-cached sessions the
+          // server hasn't acknowledged. Without this merge, a server 200 with
+          // `{ sessions: [] }` (e.g. JWT points at a different DB, fresh user
+          // account, server DB was reset, or GET happened while the user's
+          // POST /sessions was still in flight on another tab) would wipe the
+          // entire local history. The History page would flash empty, AND the
+          // `persist` middleware below would write `[]` to localStorage,
+          // permanently losing the cache until the user manually seeds it.
+          //
+          // Server is authoritative for sessions it knows about (server wins
+          // for matching ids, preserving updated_at / status from cloud-api's
+          // canonical row). Local-only entries — sessions that should have
+          // synced but haven't yet, or that predate a server DB reset — are
+          // preserved so the user doesn't lose access to what they previously
+          // created. The merge is also the natural place for future WS
+          // `session.created` echoes to converge without overwriting local
+          // additions.
+          set((state) => {
+            // Defensive: a malformed server payload (e.g. { sessions: null }
+            // or { sessions: undefined }) must not crash the merge and must
+            // not wipe the local cache. Coerce to [] so we hit the
+            // local-preserving branch instead of throwing inside set().
+            const safeServerSessions = Array.isArray(res?.sessions) ? res.sessions : [];
+            // Defensive: drop falsy ids from serverIds. A single legacy or
+            // malformed server row with no id would otherwise put `undefined`
+            // into the set, and the test `serverIds.has(id) === true` would
+            // silently drop ANY local row that also lacks an id.
+            const serverIds = new Set(safeServerSessions.map((s) => s.id).filter(Boolean));
+            const localOnly = state.sessions.filter((s) => !serverIds.has(s.id));
+            // Sort the merged list by startedAt DESC so the History page
+            // displays an intuitive order: a freshly-created local-only
+            // session (not yet round-tripped to the server) appears in the
+            // correct chronological position rather than being appended after
+            // the response tail. cloud-api already orders server rows by
+            // started_at DESC; sorting the union is cheap (≤50 rows after
+            // the cloud LIMIT) and defends against the server changing its
+            // ordering without consumers noticing.
+            const merged = [...safeServerSessions, ...localOnly].sort((a, b) => {
+              const at = new Date(a.startedAt).getTime();
+              const bt = new Date(b.startedAt).getTime();
+              return bt - at;
+            });
+            return {
+              sessions: merged,
+              isLoading: false,
+            };
+          });
         } catch {
           set({ isLoading: false });
           useToastStore.getState().pushToast({
