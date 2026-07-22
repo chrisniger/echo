@@ -83,7 +83,7 @@ router.post('/login', authRateLimit, async (req: Request, res: Response) => {
 router.post('/refresh', async (req: Request, res: Response) => {
   const parsed = refreshSchema.parse(req.body);
   const tokens = await auth.refreshToken(parsed.refreshToken);
-  res.json(tokens);
+  res.json({ tokens });
 });
 
 router.post('/logout', requireAuth, async (req: Request, res: Response) => {

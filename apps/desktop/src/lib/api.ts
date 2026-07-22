@@ -83,43 +83,14 @@ export async function refreshAuthToken(): Promise<RefreshAuthResult> {
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => controller.abort(), 10_000);
 
+    let res: Response;
     try {
-      const res = await fetch(`${CLOUD_BASE_URL}/auth/refresh`, {
+      res = await fetch(`${CLOUD_BASE_URL}/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken }),
         signal: controller.signal,
       });
-
-      if (res.ok) {
-        const data = (await res.json()) as { tokens: AuthTokens };
-        storeTokens(data.tokens);
-        notifyAuthRefreshed();
-        authLog({
-          stage: 'refresh',
-          event: 'success',
-          details: { expiresAt: data.tokens.expiresAt },
-        });
-        return { success: true, isDead: false };
-      }
-
-      if (res.status === 401) {
-        // Refresh token itself is invalid/expired.
-        authLog({
-          stage: 'refresh',
-          event: 'refresh-dead',
-          details: { status: res.status, reason: 'Refresh token invalid or expired' },
-        });
-        return { success: false, isDead: true };
-      }
-
-      // Transient server error — don't treat the session as dead.
-      authLog({
-        stage: 'refresh',
-        event: 'refresh-server-error',
-        details: { status: res.status },
-      });
-      return { success: false, isDead: false };
     } catch (err) {
       // Network blip — caller can retry later.
       authLog({
@@ -131,6 +102,48 @@ export async function refreshAuthToken(): Promise<RefreshAuthResult> {
     } finally {
       window.clearTimeout(timeoutId);
     }
+
+    if (res.ok) {
+      const data = await res.json();
+      // The server may return { tokens: AuthTokens } (wrapped) or
+      // AuthTokens directly (legacy). Accept either shape so a mismatch
+      // in one direction cannot corrupt the stored credentials.
+      const tokens: AuthTokens = data.tokens ?? data;
+      // Guard against a malformed server payload silently corrupting
+      // localStorage — surface the problem immediately so it can be fixed.
+      if (!tokens?.accessToken || !tokens?.refreshToken || !tokens?.expiresAt) {
+        throw new Error(
+          'Token refresh returned an invalid payload. ' +
+            `Got keys: ${Object.keys(tokens ?? {}).join(', ') || 'none'}`,
+        );
+      }
+      storeTokens(tokens);
+      notifyAuthRefreshed();
+      authLog({
+        stage: 'refresh',
+        event: 'success',
+        details: { expiresAt: tokens.expiresAt },
+      });
+      return { success: true, isDead: false };
+    }
+
+    if (res.status === 401) {
+      // Refresh token itself is invalid/expired.
+      authLog({
+        stage: 'refresh',
+        event: 'refresh-dead',
+        details: { status: res.status, reason: 'Refresh token invalid or expired' },
+      });
+      return { success: false, isDead: true };
+    }
+
+    // Transient server error — don't treat the session as dead.
+    authLog({
+      stage: 'refresh',
+      event: 'refresh-server-error',
+      details: { status: res.status },
+    });
+    return { success: false, isDead: false };
   })();
 
   try {

@@ -84,8 +84,10 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
         });
         if (refreshRes.ok) {
           const data = await refreshRes.json();
-          storeTokens(data.tokens);
-          headers['Authorization'] = `Bearer ${data.tokens.accessToken}`;
+          // Accept both wrapped { tokens: AuthTokens } and unwrapped AuthTokens shapes.
+          const tokens = data.tokens ?? data;
+          storeTokens(tokens);
+          headers['Authorization'] = `Bearer ${tokens.accessToken}`;
           const retry = await fetch(url, {
             ...init,
             headers,

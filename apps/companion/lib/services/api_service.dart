@@ -301,8 +301,12 @@ class ApiService extends ChangeNotifier {
       );
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
-        final newToken = data['tokens']['accessToken'] as String;
-        final newRefresh = data['tokens']['refreshToken'] as String;
+        // The server may return { tokens: AuthTokens } (wrapped) or AuthTokens
+        // directly (legacy). Accept either shape so a server-side change does
+        // not silently break token rotation.
+        final tokens = data['tokens'] as Map<String, dynamic>? ?? data;
+        final newToken = tokens['accessToken'] as String;
+        final newRefresh = tokens['refreshToken'] as String;
         _token = newToken;
         _userId = _extractUserIdFromJwt(newToken);
         await _storage.write(key: _tokenKey, value: newToken);
