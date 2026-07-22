@@ -7,16 +7,40 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { audioService, type AudioDevice } from '../services/audio';
 import type { AudioSource } from '@echo-gpt/shared-types';
 import { useSessionStore } from '../stores/session';
-import { TRANSCRIPTION_INTERVAL_OPTIONS, formatTranscriptionInterval } from '../lib/transcriptionIntervals';
+import { useToastStore } from '../stores/toast';
+import {
+  TRANSCRIPTION_INTERVAL_OPTIONS,
+  formatTranscriptionInterval,
+} from '../lib/transcriptionIntervals';
 
 interface AudioCaptureControlsProps {
   sessionId: string;
 }
 
-const AUDIO_SOURCES: { value: AudioSource; label: string; icon: React.ReactNode; description: string }[] = [
-  { value: 'system', label: 'System Audio', icon: <Volume2 className="h-4 w-4" />, description: 'PC / interview audio' },
-  { value: 'microphone', label: 'Microphone', icon: <Mic className="h-4 w-4" />, description: 'Your mic only' },
-  { value: 'mixed', label: 'Mixed', icon: <Radio className="h-4 w-4" />, description: 'System + mic together' },
+const AUDIO_SOURCES: {
+  value: AudioSource;
+  label: string;
+  icon: React.ReactNode;
+  description: string;
+}[] = [
+  {
+    value: 'system',
+    label: 'System Audio',
+    icon: <Volume2 className="h-4 w-4" />,
+    description: 'PC / interview audio',
+  },
+  {
+    value: 'microphone',
+    label: 'Microphone',
+    icon: <Mic className="h-4 w-4" />,
+    description: 'Your mic only',
+  },
+  {
+    value: 'mixed',
+    label: 'Mixed',
+    icon: <Radio className="h-4 w-4" />,
+    description: 'System + mic together',
+  },
 ];
 
 /**
@@ -39,13 +63,17 @@ const AUDIO_SOURCES: { value: AudioSource; label: string; icon: React.ReactNode;
  *
  * No more Start / Stop buttons. No more transcribe-then-stop race.
  */
-export default function AudioCaptureControls({ sessionId }: AudioCaptureControlsProps) {
+// sessionId is currently unused here — the component reads state directly
+// from useSessionStore (currentSession, endSession, patchSession). It is kept
+// on the props interface so a parent that wants to scope this control's
+// behavior to a specific session can pass it later without an API break.
+// The `_` prefix silences `@typescript-eslint/no-unused-vars`.
+export default function AudioCaptureControls({ sessionId: _sessionId }: AudioCaptureControlsProps) {
   const currentSession = useSessionStore((s) => s.currentSession);
   const setCurrentSessionAudioSource = useSessionStore((s) => s.setCurrentSessionAudioSource);
-  const updateCurrentSessionTranscriptionInterval = useSessionStore(
-    (s) => s.updateCurrentSessionTranscriptionInterval,
-  );
+  const patchSession = useSessionStore((s) => s.patchSession);
   const endSession = useSessionStore((s) => s.endSession);
+  const pushToast = useToastStore((s) => s.pushToast);
 
   const [devices, setDevices] = useState<AudioDevice[]>([]);
   const [preflight, setPreflight] = useState<{
@@ -91,14 +119,26 @@ export default function AudioCaptureControls({ sessionId }: AudioCaptureControls
     const next = Number(value);
     if (!Number.isFinite(next) || next === selectedInterval) return;
     try {
-      await updateCurrentSessionTranscriptionInterval(next);
+      // PATCH /api/sessions/:id so the new cadence is persisted server-side.
+      // patchSession is optimistic; useSessionBackground will pick up the new
+      // value reactively via its [enabled, transcriptionIntervalMs] effect.
+      // A companion or another desktop subscribed to the session room will
+      // also receive the broadcast session.updated and converge.
+      await patchSession({ transcriptionIntervalMs: next });
     } catch (err) {
       console.error('[AudioCaptureControls] Interval update failed:', err);
+      pushToast({
+        title: 'Interval not saved',
+        description: 'Echo is keeping the previous interval because the server update failed.',
+        variant: 'warning',
+        durationMs: 6000,
+      });
     }
   };
 
   const handleEndSession = async () => {
-    if (!window.confirm('End this session? You will not be able to resume it after ending.')) return;
+    if (!window.confirm('End this session? You will not be able to resume it after ending.'))
+      return;
     try {
       await endSession();
     } catch (err) {
@@ -130,9 +170,9 @@ export default function AudioCaptureControls({ sessionId }: AudioCaptureControls
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-xs text-zinc-500">
-            Audio is captured automatically as long as the session is active. Change the source
-            here to switch what Echo listens to; the engine restarts with the new source on the
-            next tick.
+            Audio is captured automatically as long as the session is active. Change the source here
+            to switch what Echo listens to; the engine restarts with the new source on the next
+            tick.
           </p>
 
           <div className="space-y-2">
@@ -193,8 +233,8 @@ export default function AudioCaptureControls({ sessionId }: AudioCaptureControls
               <div className="text-xs text-amber-300 space-y-1">
                 <p>{preflight.hint}</p>
                 <p className="text-zinc-400">
-                  On Windows: Settings → Privacy &amp; security → Microphone → enable
-                  "Let desktop apps access your microphone".
+                  On Windows: Settings → Privacy &amp; security → Microphone → enable "Let desktop
+                  apps access your microphone".
                 </p>
               </div>
             </div>
@@ -211,9 +251,7 @@ export default function AudioCaptureControls({ sessionId }: AudioCaptureControls
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
           <div>
-            <p className="text-xs font-medium text-zinc-500 mb-1">
-              Inputs ({inputDevices.length})
-            </p>
+            <p className="text-xs font-medium text-zinc-500 mb-1">Inputs ({inputDevices.length})</p>
             {inputDevices.length === 0 ? (
               <p className="text-xs text-zinc-500 italic">No microphone detected</p>
             ) : (
@@ -223,7 +261,9 @@ export default function AudioCaptureControls({ sessionId }: AudioCaptureControls
                     <Mic className="h-3 w-3 text-zinc-500" />
                     <span className="truncate">{d.name}</span>
                     {d.is_default && (
-                      <Badge variant="outline" className="text-[10px] py-0">Default</Badge>
+                      <Badge variant="outline" className="text-[10px] py-0">
+                        Default
+                      </Badge>
                     )}
                   </li>
                 ))}
@@ -235,7 +275,9 @@ export default function AudioCaptureControls({ sessionId }: AudioCaptureControls
               Outputs ({outputDevices.length})
             </p>
             {outputDevices.length === 0 ? (
-              <p className="text-xs text-zinc-500 italic">No output detected (loopback unavailable)</p>
+              <p className="text-xs text-zinc-500 italic">
+                No output detected (loopback unavailable)
+              </p>
             ) : (
               <ul className="space-y-1">
                 {outputDevices.map((d) => (
@@ -243,7 +285,9 @@ export default function AudioCaptureControls({ sessionId }: AudioCaptureControls
                     <Volume2 className="h-3 w-3 text-zinc-500" />
                     <span className="truncate">{d.name}</span>
                     {d.is_default && (
-                      <Badge variant="outline" className="text-[10px] py-0">Default</Badge>
+                      <Badge variant="outline" className="text-[10px] py-0">
+                        Default
+                      </Badge>
                     )}
                   </li>
                 ))}
@@ -251,8 +295,8 @@ export default function AudioCaptureControls({ sessionId }: AudioCaptureControls
             )}
           </div>
           <p className="text-[10px] text-zinc-500 italic">
-            Refreshes automatically every 5 seconds. Audio devices are listed by the OS — pick
-            which one to use via the Source dropdown above.
+            Refreshes automatically every 5 seconds. Audio devices are listed by the OS — pick which
+            one to use via the Source dropdown above.
           </p>
         </CardContent>
       </Card>
@@ -260,11 +304,7 @@ export default function AudioCaptureControls({ sessionId }: AudioCaptureControls
       {sessionActive && (
         <Card className="border-rose-500/30 bg-rose-500/5">
           <CardContent className="pt-6">
-            <Button
-              variant="destructive"
-              className="w-full"
-              onClick={handleEndSession}
-            >
+            <Button variant="destructive" className="w-full" onClick={handleEndSession}>
               <Square className="h-4 w-4 mr-2" />
               End Session
             </Button>

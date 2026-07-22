@@ -9,7 +9,7 @@ import type {
   SessionStatus,
   AudioSource,
 } from '@echo-gpt/shared-types';
-import { api } from '../lib/api';
+import { api, ApiError } from '../lib/api';
 import { useToastStore } from './toast';
 
 interface SessionState {
@@ -33,6 +33,25 @@ interface SessionState {
    * same value without polling.
    */
   reclassifySession: (sessionType: SessionType) => Promise<void>;
+  /**
+   * PATCH /api/sessions/:id for any combination of fields — currently
+   * `transcriptionIntervalMs` (driven by AudioCaptureControls) and
+   * `sessionType` (already exposed via reclassifySession, kept here for
+   * callers that want a single general-purpose entry point).
+   *
+   * Optimistic update with full-snapshot rollback on any error. No-op
+   * (no API call) when `updates` doesn't actually change anything — this
+   * matches cloud-api's empty-PATCH 200 + no-broadcast contract and
+   * avoids spurious WS echoes.
+   *
+   * Throws on ended-session pre-check and on API errors; the caller
+   * decides whether to swallow (e.g. transcript-interval cadence is a
+   * UX preference and a 404 doesn't justify throwing back at the user).
+   */
+  patchSession: (updates: {
+    transcriptionIntervalMs?: number;
+    sessionType?: SessionType;
+  }) => Promise<Session>;
   addTranscriptSegment: (seg: TranscriptSegment) => void;
   addAiResponse: (resp: AiResponse) => void;
   fetchSessions: () => Promise<void>;
@@ -63,6 +82,36 @@ const STORAGE_KEY = 'echo-session-storage';
 const MAX_PERSISTED_TRANSCRIPT_ITEMS = 500;
 const MAX_PERSISTED_RESPONSE_ITEMS = 500;
 
+// Dedupe window for the "Session not on server" toast. Without this, rapid
+// Pause/Resume clicks or repeated navigation into a dead session would queue
+// identical toasts on top of each other. We cache the last-shown timestamp
+// per session id so each session gets at most one toast per 4s.
+const NOT_FOUND_TOAST_TTL_MS = 4_000;
+const lastNotFoundToastAtMs = new Map<string, number>();
+
+/**
+ * Returns true if a "Session not on server" toast for `sessionId` should be
+ * shown right now. Side effect: records the current timestamp so a second
+ * call within NOT_FOUND_TOAST_TTL_MS will return false.
+ *
+ * Intentionally module-scoped (not in the zustand store) — this is purely a
+ * toast-rendering dedupe, not domain state, and it must be lost on app
+ * restart. The Map's growth is bounded by the number of distinct session
+ * ids encountered during the app's lifetime, which is small.
+ *
+ * Tests rely on per-test UNIQUE session ids to isolate state — there is no
+ * exported reset helper so the production module surface stays clean.
+ */
+function shouldShowNotFoundToast(sessionId: string): boolean {
+  const now = Date.now();
+  const lastShown = lastNotFoundToastAtMs.get(sessionId);
+  if (lastShown !== undefined && now - lastShown < NOT_FOUND_TOAST_TTL_MS) {
+    return false;
+  }
+  lastNotFoundToastAtMs.set(sessionId, now);
+  return true;
+}
+
 export const useSessionStore = create<SessionState>()(
   persist(
     (set, get) => ({
@@ -88,34 +137,113 @@ export const useSessionStore = create<SessionState>()(
       endSession: async () => {
         const { currentSession } = get();
         if (!currentSession) return;
-        const updated = await api.post<Session>(`/sessions/${currentSession.id}/end`);
-        set((state) => ({
-          currentSession: updated,
-          status: updated.status,
-          sessions: state.sessions.map((s) => (s.id === updated.id ? updated : s)),
-        }));
+        const id = currentSession.id;
+        try {
+          const updated = await api.post<Session>(`/sessions/${id}/end`);
+          set((state) => ({
+            currentSession: updated,
+            status: updated.status,
+            sessions: state.sessions.map((s) => (s.id === updated.id ? updated : s)),
+          }));
+        } catch (err) {
+          // 404 from cloud-api means this session row no longer exists on the
+          // server. This commonly happens after a DB reset (e.g. after the
+          // PROJECT_ROOT DB path fix in apps/cloud-api/src/db/index.ts
+          // resolved the DB to a different file) or after the cloud row was
+          // cleaned up. The user's intent — "end this session" — should be
+          // honoured locally so the page stops showing it as active. The
+          // session remains in localStorage as ended (and in the History
+          // list), preserving the persisted-state rehydration contract.
+          if (err instanceof ApiError && err.status === 404) {
+            const endedAt = currentSession.endedAt || new Date().toISOString();
+            const endedSession: Session = { ...currentSession, status: 'ended', endedAt };
+            set((state) => {
+              // Defensive: only flip the live currentSession if the user
+              // hasn't navigated to a different session during the in-flight
+              // POST. The `sessions` list still gets the tombstone so it
+              // shows correctly in History.
+              const stillSame =
+                state.currentSession !== null && state.currentSession.id === endedSession.id;
+              return {
+                currentSession: stillSame ? endedSession : state.currentSession,
+                status: stillSame ? 'ended' : state.status,
+                sessions: state.sessions.map((s) => (s.id === endedSession.id ? endedSession : s)),
+              };
+            });
+            // Confirm to the user that the click HAD an effect — without this
+            // the user sees their "Active" badge flip and may wonder if
+            // anything happened. NOT routed through shouldShowNotFoundToast:
+            // this is a success-state notification, not a complaint about a
+            // missing row, so it should always surface.
+            useToastStore.getState().pushToast({
+              title: 'Session ended locally',
+              description:
+                'The server had no record of this session. The session is now marked ended in your local view.',
+              variant: 'default',
+              durationMs: 5000,
+            });
+            return;
+          }
+          throw err;
+        }
       },
 
       pauseSession: async () => {
         const { currentSession } = get();
         if (!currentSession) return;
-        const updated = await api.post<Session>(`/sessions/${currentSession.id}/pause`);
-        set((state) => ({
-          currentSession: updated,
-          status: updated.status,
-          sessions: state.sessions.map((s) => (s.id === updated.id ? updated : s)),
-        }));
+        try {
+          const updated = await api.post<Session>(`/sessions/${currentSession.id}/pause`);
+          set((state) => ({
+            currentSession: updated,
+            status: updated.status,
+            sessions: state.sessions.map((s) => (s.id === updated.id ? updated : s)),
+          }));
+        } catch (err) {
+          // 404 — the cloud doesn't know this session. Don't attempt to
+          // transition the local capture state (pause is reversible; end is
+          // the correct escape hatch). Quietly toast a hint instead, but
+          // dedupe per session id so spam-clicks don't stack identical toasts.
+          if (err instanceof ApiError && err.status === 404) {
+            if (shouldShowNotFoundToast(currentSession.id)) {
+              useToastStore.getState().pushToast({
+                title: 'Session not on server',
+                description:
+                  'Pause is unavailable — the session was not found. Click End to clear it locally.',
+                variant: 'warning',
+                durationMs: 6000,
+              });
+            }
+            return;
+          }
+          throw err;
+        }
       },
 
       resumeSession: async () => {
         const { currentSession } = get();
         if (!currentSession) return;
-        const updated = await api.post<Session>(`/sessions/${currentSession.id}/resume`);
-        set((state) => ({
-          currentSession: updated,
-          status: updated.status,
-          sessions: state.sessions.map((s) => (s.id === updated.id ? updated : s)),
-        }));
+        try {
+          const updated = await api.post<Session>(`/sessions/${currentSession.id}/resume`);
+          set((state) => ({
+            currentSession: updated,
+            status: updated.status,
+            sessions: state.sessions.map((s) => (s.id === updated.id ? updated : s)),
+          }));
+        } catch (err) {
+          if (err instanceof ApiError && err.status === 404) {
+            if (shouldShowNotFoundToast(currentSession.id)) {
+              useToastStore.getState().pushToast({
+                title: 'Session not on server',
+                description:
+                  'Resume is unavailable — the session was not found. Click End to clear it locally.',
+                variant: 'warning',
+                durationMs: 6000,
+              });
+            }
+            return;
+          }
+          throw err;
+        }
       },
 
       reclassifySession: async (sessionType: SessionType) => {
@@ -152,6 +280,99 @@ export const useSessionStore = create<SessionState>()(
             return {
               currentSession: rolledBack,
               sessions: state.sessions.map((s) => (s.id === rolledBack.id ? rolledBack : s)),
+            };
+          });
+          throw err;
+        }
+      },
+
+      patchSession: async (updates) => {
+        const { currentSession } = get();
+        if (!currentSession) {
+          throw new Error('No active session to patch.');
+        }
+        if (currentSession.status === 'ended') {
+          throw new Error('Cannot patch an ended session.');
+        }
+
+        // No-op when the proposed updates don't actually change the live
+        // values. This mirrors cloud-api's empty-PATCH contract (200 + no
+        // broadcast, no UPDATE issued) and protects the WS broadcast path
+        // from spurious echoes.
+        const hasSessionTypeChange =
+          updates.sessionType !== undefined && updates.sessionType !== currentSession.sessionType;
+        const hasIntervalChange =
+          updates.transcriptionIntervalMs !== undefined &&
+          updates.transcriptionIntervalMs !== currentSession.transcriptionIntervalMs;
+        if (!hasSessionTypeChange && !hasIntervalChange) {
+          return currentSession;
+        }
+
+        // Full-snapshot for rollback. ReclassifySession only rolls back the
+        // single field it touched; patchSession must restore the entire session
+        // shape because it can move multiple fields in one round trip.
+        const previousSession = currentSession;
+
+        // Per-field optimistic value. We can't spread `...updates` because
+        // `transcriptionIntervalMs: undefined` would clobber the field, and
+        // an accidental `status: ...` on the caller side would overwrite the
+        // authoritative SessionStatus. Pull the candidate values up so we can
+        // also use them in the rollback equality check below.
+        const optimisticTranscriptionIntervalMs =
+          updates.transcriptionIntervalMs !== undefined
+            ? updates.transcriptionIntervalMs
+            : currentSession.transcriptionIntervalMs;
+        const optimisticSessionType =
+          updates.sessionType !== undefined ? updates.sessionType : currentSession.sessionType;
+        const optimistic: Session = {
+          ...currentSession,
+          transcriptionIntervalMs: optimisticTranscriptionIntervalMs,
+          sessionType: optimisticSessionType,
+        };
+        set({ currentSession: optimistic });
+
+        try {
+          const updated = await api.patch<Session>(`/sessions/${currentSession.id}`, updates);
+          set((state) => ({
+            currentSession: updated,
+            status: updated.status,
+            sessions: state.sessions.map((s) => (s.id === updated.id ? updated : s)),
+          }));
+          return updated;
+        } catch (err) {
+          // Rollback the optimistic flip ONLY if the live state still holds
+          // exactly the optimistic values this request set. If a newer
+          // patchSession call already moved the store forward, leaving this
+          // request's optimistic value behind, we MUST NOT clobber the newer
+          // request's progress. This protects against a real race:
+          // user picks 5s → picks 10s; the 5s PATCH fails AFTER the 10s
+          // PATCH succeeded; without this guard the rollback would silently
+          // revert the user's 10s intent.
+          //
+          // MAINTENANCE: if you add a new patchable field to patchSession's
+          // `updates` parameter, ALSO add the corresponding equality check
+          // below (next to `intervalMatches` and `sessionTypeMatches`).
+          // Otherwise the rollback may false-positive — the old fields still
+          // match while a newer request's success lives in an uncompared
+          // field, and this catch would revert it. The fields enumerated here
+          // MUST stay in sync with the optimistic merge above.
+          set((state) => {
+            const live = state.currentSession;
+            const sameId = live !== null && live.id === currentSession.id;
+            const intervalMatches =
+              live?.transcriptionIntervalMs === optimisticTranscriptionIntervalMs;
+            const sessionTypeMatches = live?.sessionType === optimisticSessionType;
+            if (!sameId || !intervalMatches || !sessionTypeMatches) {
+              // A newer request pre-empted us (or the user navigated away).
+              // Leave the live state alone. The newer request owns the
+              // outcome of its own success/failure path.
+              return state;
+            }
+            return {
+              currentSession: previousSession,
+              sessions: state.sessions.map((s) =>
+                s.id === previousSession.id ? previousSession : s,
+              ),
             };
           });
           throw err;
@@ -225,8 +446,25 @@ export const useSessionStore = create<SessionState>()(
             isLoading: false,
             sessions: state.sessions.map((s) => (s.id === session.id ? session : s)),
           }));
-        } catch {
+        } catch (err) {
           set({ isLoading: false });
+          // Differentiate the 404 case (session row is gone from the server)
+          // from a transient network blip (server unreachable, 5xx, etc.).
+          // The 404 message guides the user to the End-button escape hatch;
+          // the generic warning keeps the existing "using cached data" tail.
+          // Dedupe the 404 toast per session id so re-navigation into the
+          // same dead session doesn't stack identical toasts.
+          const isNotFound = err instanceof ApiError && err.status === 404;
+          if (!isNotFound || shouldShowNotFoundToast(id)) {
+            useToastStore.getState().pushToast({
+              title: isNotFound ? 'Session not on server' : 'Session unavailable',
+              description: isNotFound
+                ? 'This session is no longer on the server. Click End to clear it from your local view.'
+                : 'Could not load session from server. Using locally cached data — changes may not be saved.',
+              variant: 'warning',
+              durationMs: 8000,
+            });
+          }
         }
       },
 
