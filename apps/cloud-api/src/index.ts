@@ -20,7 +20,7 @@ import { createSyncRouter } from './routes/sync.js';
 import { createBillingRouter } from './routes/billing.js';
 import sessionRoutes from './routes/sessions.js';
 import { createCvRouter } from './routes/cv.js';
-import { getDb } from './db/index.js';
+import { getDb, logDbHealth } from './db/index.js';
 import { HttpError } from './lib/errors.js';
 import { WsGateway } from './websocket/gateway.js';
 import { setWsGateway } from './websocket/gateway-singleton.js';
@@ -56,8 +56,17 @@ app.get('/api/ws-stats', (_req, res) => {
   res.json(wsGateway.getStats());
 });
 
-app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error('[ERROR]', err);
+app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  // For expected 4xx errors (e.g. wrong password) log a short warning.
+  // Unexpected 5xx errors get the full stack trace for debugging.
+  if (err instanceof HttpError && err.statusCode < 500) {
+    console.warn(`[${err.statusCode}] ${req.method} ${req.path}: ${err.message}`);
+  } else if (err.name === 'ZodError') {
+    console.warn(`[400] ${req.method} ${req.path}: Validation error`);
+  } else {
+    console.error('[ERROR]', err);
+  }
+
   if (err.name === 'ZodError') {
     res.status(400).json({ error: 'Validation error', details: (err as any).errors });
     return;
@@ -89,6 +98,7 @@ declare module 'express' {
 }
 
 getDb();
+logDbHealth();
 
 // Shared mDNS state so the /settings/mdns endpoint can enable/disable
 // advertisement at runtime without restarting the server.
