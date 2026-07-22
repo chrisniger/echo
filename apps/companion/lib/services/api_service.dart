@@ -153,13 +153,28 @@ class ApiService extends ChangeNotifier {
       }
     }
     notifyListeners();
+
+    // Read stored token and check if it's still valid before using it.
+    // If the JWT header shows it's expired (no base64 decode needed for the
+    // expiry check), clear it to avoid sending a stale Authorization header.
     final token = await _storage.read(key: _tokenKey);
-    _token = token;
     if (token != null) {
-      _userId = _extractUserIdFromJwt(token);
-      connectWebSocket();
+      final expiry = _extractExpiryFromJwt(token);
+      if (expiry != null && expiry.isBefore(DateTime.now())) {
+        debugPrint('[ApiService] Stored access token is expired, clearing');
+        _token = null;
+        _userId = null;
+        await _storage.delete(key: _tokenKey);
+        // Keep the refresh token — tryRefreshToken may still salvage it.
+      } else {
+        _token = token;
+        _userId = _extractUserIdFromJwt(token);
+        connectWebSocket();
+      }
     }
   }
+
+
 
   /// Discover an Echo Cloud API server on the local network and persist it.
   /// Returns the discovered URL or null if none is found.
@@ -215,7 +230,9 @@ class ApiService extends ChangeNotifier {
     notifyListeners();
   }
 
-  String? _extractUserIdFromJwt(String token) {
+  /// Decode the payload segment of a JWT and return it as a JSON map.
+  /// Returns null if the token is malformed or cannot be decoded.
+  Map<String, dynamic>? _decodeJwtPayload(String token) {
     try {
       final parts = token.split('.');
       if (parts.length < 2) return null;
@@ -225,11 +242,26 @@ class ApiService extends ChangeNotifier {
         payload += '=';
       }
       final decoded = utf8.decode(base64Decode(payload));
-      final json = jsonDecode(decoded) as Map<String, dynamic>;
-      return json['userId'] as String? ?? json['sub'] as String?;
+      return jsonDecode(decoded) as Map<String, dynamic>;
     } catch (_) {
       return null;
     }
+  }
+
+  String? _extractUserIdFromJwt(String token) {
+    final json = _decodeJwtPayload(token);
+    if (json == null) return null;
+    return json['userId'] as String? ?? json['sub'] as String?;
+  }
+
+  /// Extract the 'exp' claim from a JWT without verifying the signature.
+  /// Returns null if the token is malformed or lacks an expiry.
+  DateTime? _extractExpiryFromJwt(String token) {
+    final json = _decodeJwtPayload(token);
+    if (json == null) return null;
+    final exp = json['exp'];
+    if (exp is int) return DateTime.fromMillisecondsSinceEpoch(exp * 1000);
+    return null;
   }
 
   Map<String, String> get _headers => {
@@ -237,15 +269,69 @@ class ApiService extends ChangeNotifier {
     if (_token != null) 'Authorization': 'Bearer $_token',
   };
 
+  /// Extract a user-friendly error message from an HTTP response body.
+  /// Tries 'error' then 'message' keys; falls back to a generic status message.
+  String _errorMessage(http.Response res) {
+    try {
+      final body = jsonDecode(res.body);
+      if (body is Map) {
+        final msg = body['error'] ?? body['message'];
+        if (msg is String && msg.isNotEmpty) return msg;
+      }
+    } catch (_) {}
+    if (res.statusCode == 401) return 'Unauthorized';
+    if (res.statusCode == 403) return 'Forbidden';
+    if (res.statusCode == 404) return 'Not found';
+    if (res.statusCode >= 500) return 'Server error';
+    return 'Request failed (${res.statusCode})';
+  }
+
+  /// Attempt a token refresh and retry the request. Called only for non-login
+  /// endpoints (public routes like /auth/login should never trigger a refresh).
+  Future<http.Response> _retryWithRefresh(
+      String method, String url, Map<String, dynamic>? body) async {
+    if (await tryRefreshToken()) {
+      final headers = {
+        'Content-Type': 'application/json',
+        if (_token != null) 'Authorization': 'Bearer $_token',
+      };
+      return await _httpRequest(method, url, headers, body);
+    }
+    // Return a synthetic 401 so the caller throws the original error.
+    return http.Response('{}', 401);
+  }
+
+  Future<http.Response> _httpRequest(
+      String method, String url, Map<String, String> headers, Map<String, dynamic>? body) {
+    final uri = Uri.parse(url);
+    switch (method) {
+      case 'GET':
+        return http.get(uri, headers: headers);
+      case 'POST':
+        return http.post(uri, headers: headers, body: body != null ? jsonEncode(body) : null);
+      case 'PUT':
+        return http.put(uri, headers: headers, body: body != null ? jsonEncode(body) : null);
+      case 'DELETE':
+        return http.delete(uri, headers: headers);
+      default:
+        throw Exception('Unsupported HTTP method: $method');
+    }
+  }
+
   Future<dynamic> get(String path) async {
     final base = _requireBaseUrl();
-    var res = await http.get(Uri.parse('$base/api$path'), headers: _headers);      if (res.statusCode == 401) {
-        if (await tryRefreshToken()) {
-          res = await http.get(Uri.parse('$base/api$path'), headers: _headers);
-        }
+    final url = '$base/api$path';
+    var res = await http.get(Uri.parse(url), headers: _headers);
+    if (res.statusCode == 401) {
+      // Only retry with refresh for authenticated endpoints
+      if (path == '/auth/login' || path == '/auth/register') {
+        throw Exception(_errorMessage(res));
       }
-    if (res.statusCode == 401) throw Exception('Unauthorized');
-    if (res.statusCode >= 400) throw Exception('API error: ${res.statusCode}');
+      res = await _retryWithRefresh('GET', url, null);
+    }
+    if (res.statusCode == 401 || res.statusCode >= 400) {
+      throw Exception(_errorMessage(res));
+    }
     return jsonDecode(res.body);
   }
 
@@ -258,35 +344,48 @@ class ApiService extends ChangeNotifier {
 
   Future<Map<String, dynamic>> post(String path, {Map<String, dynamic>? body}) async {
     final base = _requireBaseUrl();
-    var res = await http.post(Uri.parse('$base/api$path'), headers: _headers, body: body != null ? jsonEncode(body) : null);      if (res.statusCode == 401) {
-        if (await tryRefreshToken()) {
-          res = await http.post(Uri.parse('$base/api$path'), headers: _headers, body: body != null ? jsonEncode(body) : null);
-        }
+    final url = '$base/api$path';
+    var res = await http.post(Uri.parse(url), headers: _headers, body: body != null ? jsonEncode(body) : null);
+    if (res.statusCode == 401) {
+      // Public auth routes should never trigger token refresh
+      if (path == '/auth/login' || path == '/auth/register') {
+        throw Exception(_errorMessage(res));
       }
-    if (res.statusCode == 401) throw Exception('Unauthorized');
-    if (res.statusCode >= 400) throw Exception('API error: ${res.statusCode} ${res.body}');
+      res = await _retryWithRefresh('POST', url, body);
+    }
+    if (res.statusCode == 401 || res.statusCode >= 400) {
+      throw Exception(_errorMessage(res));
+    }
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
 
   Future<Map<String, dynamic>> put(String path, {Map<String, dynamic>? body}) async {
     final base = _requireBaseUrl();
-    var res = await http.put(Uri.parse('$base/api$path'), headers: _headers, body: body != null ? jsonEncode(body) : null);      if (res.statusCode == 401) {
-        if (await tryRefreshToken()) {
-          res = await http.put(Uri.parse('$base/api$path'), headers: _headers, body: body != null ? jsonEncode(body) : null);
-        }
+    final url = '$base/api$path';
+    var res = await http.put(Uri.parse(url), headers: _headers, body: body != null ? jsonEncode(body) : null);
+    if (res.statusCode == 401) {
+      if (path == '/auth/login' || path == '/auth/register') {
+        throw Exception(_errorMessage(res));
       }
-    if (res.statusCode >= 400) throw Exception('API error: ${res.statusCode}');
+      res = await _retryWithRefresh('PUT', url, body);
+    }
+    if (res.statusCode == 401) throw Exception(_errorMessage(res));
+    if (res.statusCode >= 400) throw Exception(_errorMessage(res));
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
 
   Future<void> delete(String path) async {
     final base = _requireBaseUrl();
-    var res = await http.delete(Uri.parse('$base/api$path'), headers: _headers);      if (res.statusCode == 401) {
-        if (await tryRefreshToken()) {
-          res = await http.delete(Uri.parse('$base/api$path'), headers: _headers);
-        }
+    final url = '$base/api$path';
+    var res = await http.delete(Uri.parse(url), headers: _headers);
+    if (res.statusCode == 401) {
+      if (path == '/auth/login' || path == '/auth/register') {
+        throw Exception(_errorMessage(res));
       }
-    if (res.statusCode >= 400) throw Exception('API error: ${res.statusCode}');
+      res = await _retryWithRefresh('DELETE', url, null);
+    }
+    if (res.statusCode == 401) throw Exception(_errorMessage(res));
+    if (res.statusCode >= 400) throw Exception(_errorMessage(res));
   }
 
   Future<bool> tryRefreshToken() async {
