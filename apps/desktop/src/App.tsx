@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from './stores/auth';
 import { useWebSocket } from './hooks/useWebSocket';
+import { useThemeEffect } from './hooks/useThemeEffect';
 import { getAccessToken, getRefreshToken, getExpiresAt, isTokenExpired } from './lib/auth';
 import { refreshAuthToken } from './lib/api';
 import Login from './pages/Login';
@@ -27,6 +28,15 @@ const queryClient = new QueryClient({
 
 function WebSocketProvider({ children }: { children: React.ReactNode }) {
   useWebSocket();
+  return <>{children}</>;
+}
+
+function ThemeEffectBridge({ children }: { children: React.ReactNode }) {
+  // Mounted once near the root — keeps <html>'s `dark` class in sync
+  // with settings.theme + os prefers-color-scheme. The pre-React inline
+  // script in index.html covers the initial paint; this hook handles
+  // every subsequent change (clicks on Light/Dark/System, OS toggle).
+  useThemeEffect();
   return <>{children}</>;
 }
 
@@ -172,7 +182,7 @@ export default function App() {
 
   if (!authBootstrapped) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-950 text-zinc-400">
+      <div className="flex min-h-screen items-center justify-center bg-zinc-100 text-zinc-600 dark:bg-zinc-950 dark:text-zinc-400">
         Restoring session...
       </div>
     );
@@ -180,65 +190,67 @@ export default function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <WebSocketProvider>
-        <BrowserRouter>
-          <div className="min-h-screen bg-zinc-950 text-zinc-100">
-            <Routes>
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              <Route
-                path="/dashboard"
-                element={
-                  <ProtectedLayout>
-                    <Dashboard />
-                  </ProtectedLayout>
-                }
-              />
-              <Route
-                path="/new-session"
-                element={
-                  <ProtectedLayout>
-                    <NewSession />
-                  </ProtectedLayout>
-                }
-              />
-              <Route
-                path="/sessions/:id"
-                element={
-                  <ProtectedLayout>
-                    <SessionDetail />
-                  </ProtectedLayout>
-                }
-              />
-              <Route
-                path="/history"
-                element={
-                  <ProtectedLayout>
-                    <History />
-                  </ProtectedLayout>
-                }
-              />
-              <Route
-                path="/settings"
-                element={
-                  <ProtectedLayout>
-                    <Settings />
-                  </ProtectedLayout>
-                }
-              />
-              <Route
-                path="/cv-library"
-                element={
-                  <ProtectedLayout>
-                    <CvLibrary />
-                  </ProtectedLayout>
-                }
-              />
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
-            </Routes>
-          </div>
-        </BrowserRouter>
-      </WebSocketProvider>
+      <ThemeEffectBridge>
+        <WebSocketProvider>
+          <BrowserRouter>
+            <div className="min-h-screen bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
+              <Routes>
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
+                <Route
+                  path="/dashboard"
+                  element={
+                    <ProtectedLayout>
+                      <Dashboard />
+                    </ProtectedLayout>
+                  }
+                />
+                <Route
+                  path="/new-session"
+                  element={
+                    <ProtectedLayout>
+                      <NewSession />
+                    </ProtectedLayout>
+                  }
+                />
+                <Route
+                  path="/sessions/:id"
+                  element={
+                    <ProtectedLayout>
+                      <SessionDetail />
+                    </ProtectedLayout>
+                  }
+                />
+                <Route
+                  path="/history"
+                  element={
+                    <ProtectedLayout>
+                      <History />
+                    </ProtectedLayout>
+                  }
+                />
+                <Route
+                  path="/settings"
+                  element={
+                    <ProtectedLayout>
+                      <Settings />
+                    </ProtectedLayout>
+                  }
+                />
+                <Route
+                  path="/cv-library"
+                  element={
+                    <ProtectedLayout>
+                      <CvLibrary />
+                    </ProtectedLayout>
+                  }
+                />
+                <Route path="*" element={<Navigate to="/dashboard" replace />} />
+              </Routes>
+            </div>
+          </BrowserRouter>
+        </WebSocketProvider>
+      </ThemeEffectBridge>
     </QueryClientProvider>
   );
 }

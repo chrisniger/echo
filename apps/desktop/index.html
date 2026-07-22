@@ -1,12 +1,40 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/echo-icon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Echo GPT</title>
+    <!--
+      Pre-React theme bootstrap. Runs synchronously before any module
+      scripts so the <html> "dark" class is already set when CSS parses
+      and the first paint is correctly themed (no FOUC).
+      Mirrors apps/desktop/src/lib/theme.ts (resolveTheme + applyThemeClass).
+    -->
+    <script>
+      (function () {
+        try {
+          var raw = localStorage.getItem('echo_settings');
+          var stored = raw ? JSON.parse(raw) : null;
+          var theme = stored && stored.theme ? stored.theme : 'dark';
+          var prefersDark = !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          var isDark = theme === 'system' ? prefersDark : theme === 'dark';
+          // Defensive: explicitly remove when resolved is light, in case
+          // <html> had `dark` left over from a stale page or test fixture.
+          if (isDark) {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+          }
+          document.documentElement.dataset.themeBootstrap = '1';
+        } catch (e) {
+          // localStorage may be unavailable (privacy mode etc.) — fall back to dark
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
   </head>
-  <body class="bg-zinc-950 text-zinc-100">
+  <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
