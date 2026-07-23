@@ -1,8 +1,8 @@
 import { v4 as uuid } from 'uuid';
 import type { ChatRequest, ChatResponse, ChatChunk, AiModel } from '@echo-gpt/shared-types';
-import { contentToString } from '@echo-gpt/shared-types';
 import { BaseProvider } from './index.js';
 import { config } from '../config.js';
+import { buildGeminiParts } from '../services/multimodal.js';
 
 export class GeminiProvider extends BaseProvider {
   readonly name = 'gemini' as const;
@@ -20,18 +20,6 @@ export class GeminiProvider extends BaseProvider {
     return map[model] ?? model;
   }
 
-  private toGeminiMessages(messages: ChatRequest['messages']) {
-    const parts: Array<{ text: string }> = [];
-    for (const m of messages) {
-      if (m.role === 'system') {
-        parts.push({ text: `[System Instruction]: ${contentToString(m.content)}` });
-      } else {
-        parts.push({ text: contentToString(m.content) });
-      }
-    }
-    return parts;
-  }
-
   async chat(request: ChatRequest, options?: { signal?: AbortSignal }): Promise<ChatResponse> {
     const start = Date.now();
     const modelId = this.getModelId(request.model);
@@ -41,7 +29,7 @@ export class GeminiProvider extends BaseProvider {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [{ parts: this.toGeminiMessages(request.messages) }],
+        contents: [{ parts: buildGeminiParts(request.messages) }],
         generationConfig: {
           temperature: request.temperature ?? 0.7,
           maxOutputTokens: request.maxTokens ?? 4096,
@@ -94,7 +82,7 @@ export class GeminiProvider extends BaseProvider {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [{ parts: this.toGeminiMessages(request.messages) }],
+        contents: [{ parts: buildGeminiParts(request.messages) }],
         generationConfig: {
           temperature: request.temperature ?? 0.7,
           maxOutputTokens: request.maxTokens ?? 4096,
