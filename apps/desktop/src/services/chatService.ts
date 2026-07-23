@@ -1,8 +1,14 @@
-import { gatewayApi } from '../lib/api';
+import { api, gatewayApi } from '../lib/api';
 import { getWsClient } from '../hooks/useWebSocket';
 import { useSessionStore } from '../stores/session';
 import { buildContextMessages } from '../lib/context';
-import type { AiModel, ChatMessage, SessionType } from '@echo-gpt/shared-types';
+import {
+  SCREENSHOT_MIME_TYPES,
+  type AiModel,
+  type ChatMessage,
+  type ScreenshotMime,
+  type SessionType,
+} from '@echo-gpt/shared-types';
 import { PREFERRED_VISION_FALLBACK, VISION_CAPABLE_MODELS } from '@echo-gpt/shared-config';
 
 /**
@@ -60,6 +66,86 @@ export interface ChatResponse {
   model: string;
   provider: string;
   tokensUsed: { prompt: number; completion: number; total: number };
+}
+
+const DATA_URL_MIME_RE = /^data:([^;,]+);/;
+
+/**
+ * Phase 24a — Decode the mime + natural dimensions of a `data:<mime>;base64,…`
+ * payload. The cloud-api POST `/api/screenshots` zod schema requires
+ * `{mime, width, height}` and a closed-union mime
+ * (`SCREENSHOT_MIME_TYPES = ['image/png', 'image/jpeg']`).
+ *
+ * Implementation notes:
+ *   - Uses `<img>.onload` + `naturalWidth/Height` (browser-only) — this
+ *     service only runs in the desktop WebView, so no jsdom-specific
+ *     shim is needed for production. Vitest mocks `Image` globally so
+ *     the test path still resolves synchronously.
+ *   - Rejects with an Error rather than returning a sentinel, so the
+ *     caller (`syncScreenshotToCloud`) can log WHY the persist was
+ *     skipped (decode failure vs unknown mime) instead of swallowing
+ *     silently.
+ */
+async function decodeDataUrlMeta(
+  dataUrl: string,
+): Promise<{ mime: ScreenshotMime; width: number; height: number }> {
+  const prefixMatch = DATA_URL_MIME_RE.exec(dataUrl);
+  const mimeCandidate = prefixMatch ? prefixMatch[1] : '';
+  if (!(SCREENSHOT_MIME_TYPES as readonly string[]).includes(mimeCandidate)) {
+    throw new Error(
+      `Unsupported screenshot mime: "${mimeCandidate || '<empty>'}" — expected one of ${SCREENSHOT_MIME_TYPES.join(', ')}`,
+    );
+  }
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const w = img.naturalWidth;
+      const h = img.naturalHeight;
+      if (!w || !h) {
+        reject(new Error('Decoded image has zero natural dimensions'));
+        return;
+      }
+      resolve({ mime: mimeCandidate as ScreenshotMime, width: w, height: h });
+    };
+    img.onerror = () => reject(new Error('Failed to decode image data URL via <img>.onload'));
+    img.src = dataUrl;
+  });
+}
+
+/**
+ * Phase 24a — Persist the analysed screenshot to cloud-api so the WS
+ * gateway broadcasts a `screenshot.create` event to the Companion app
+ * + Web Portal gallery (server-side commit 5125933 handles the
+ * SQLite write + dual-fan-out broadcast on success).
+ *
+ * Best-effort by design: any failure (network blip, 4xx/5xx, unknown
+ * mime, decode error) is logged via `console.warn` and DOES NOT throw.
+ * The AI request is the user-facing commitment — a missing screenshot
+ * row is unfortunate but not user-visible; a failed AI analysis because
+ * the cloud-api was unreachable would be a regression.
+ */
+async function syncScreenshotToCloud(sessionId: string, imageBase64: string): Promise<void> {
+  try {
+    const { mime, width, height } = await decodeDataUrlMeta(imageBase64);
+    await api.post('/screenshots', {
+      sessionId,
+      mime,
+      width,
+      height,
+      // Phase 24a ships without crop-box plumbing — ScreenshotCapture's
+      // selection rect stays in component-local state. The cloud-api
+      // accepts `cropBoxJson: null` (Phase 24 schema). A follow-up
+      // commit will plumb the rect through ChatRequestOptions.
+      cropBoxJson: null,
+      dataUrl: imageBase64,
+    });
+  } catch (err) {
+    console.warn(
+      `[chatService] Failed to sync screenshot to cloud-api (continuing AI request anyway): ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+  }
 }
 
 /**
@@ -122,6 +208,15 @@ export async function askAssistant(opts: ChatRequestOptions): Promise<ChatRespon
       `[chatService] Model ${targetModel} does not support vision in the current gateway. Falling back to ${DEFAULT_IMAGE_MODEL}.`,
     );
     targetModel = DEFAULT_IMAGE_MODEL;
+  }
+
+  // Phase 24a — persist the screenshot to cloud-api BEFORE the AI request
+  // so the WS gateway's `screenshot.create` event fans out to Companion +
+  // Web Portal in lockstep with the AI request (server-side commit 5125933).
+  // Best-effort: a cloud-api POST failure does NOT abort the /chat flow
+  // (the AI response is the user-facing commitment).
+  if (opts.imageBase64) {
+    await syncScreenshotToCloud(opts.sessionId, opts.imageBase64);
   }
 
   let response: ChatResponse;
