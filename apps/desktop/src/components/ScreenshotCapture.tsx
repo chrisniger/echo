@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useLayoutEffect } from 'react';
 import { Camera, Loader2, AlertCircle, Check, X } from 'lucide-react';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import type { AiModel } from '@echo-gpt/shared-types';
@@ -42,6 +42,19 @@ export default function ScreenshotCapture({ sessionId }: ScreenshotCaptureProps)
   const containerRef = useRef<HTMLDivElement | null>(null);
   const dragStart = useRef<{ x: number; y: number } | null>(null);
   const handleCaptureRef = useRef<(() => Promise<void>) | undefined>(undefined);
+  // NIT 4 ref-pin: ensure the measurement block runs only on the
+  // false→true transition of imageLoaded. The early-return inside the
+  // effect resets this to false on any future Retake so the next decode
+  // is not skipped. ResizeObserver handles all subsequent container
+  // resizes for free, so we do NOT need the effect body to re-run on
+  // layout reflows.
+  //
+  // IMPORTANT: this is intentionally a `useRef`, NOT a `useMemo`. They are
+  // not equivalent. `useRef` survives React 19 StrictMode's
+  // mount→cleanup→mount cycle and per-dep-change re-runs cleanly;
+  // `useMemo` recomputes per render and would re-pin spuriously. Future
+  // refactorers: keep this as `useRef`.
+  const lastMeasuredLoaded = useRef(false);
 
   const handleCapture = async () => {
     setIsCapturing(true);
@@ -58,25 +71,57 @@ export default function ScreenshotCapture({ sessionId }: ScreenshotCaptureProps)
     }
   };
 
-  useEffect(() => {
-    const updateScale = () => {
+  useLayoutEffect(() => {
+    // NIT 4: ref-pin short-circuit. Reset the pin if imageLoaded drops
+    // (e.g. Retake before the next onLoad), so the false→true
+    // transition that follows reattaches the ResizeObserver cleanly.
+    if (!imageLoaded) {
+      lastMeasuredLoaded.current = false;
+      return;
+    }
+    if (lastMeasuredLoaded.current) return;
+    lastMeasuredLoaded.current = true;
+
+    const measure = () => {
       const img = imageRef.current;
       if (!img || !lastScreenshot) return;
       const renderedWidth = img.clientWidth;
-      const naturalWidth = img.naturalWidth || lastScreenshot.width;
+      // NIT 1: defensive fallback. If neither naturalWidth nor the
+      // lastScreenshot.width from Rust are populated (which should never
+      // happen post-decode — Rust always pushes image.width() — but is
+      // possible during early-decoding or after a future Rust regression),
+      // we log loudly AND fall back to a 1:1 ratio instead of letting
+      // `displayScale = renderedWidth / 0 = NaN` produce a silently-invisible
+      // indigo overlay. Loud-on-failure > silent-zero-output so any future
+      // regression surfaces in devtools rather than as a UX regression.
+      const naturalWidthRaw = img.naturalWidth || lastScreenshot.width;
+      if (!naturalWidthRaw) {
+        console.warn(
+          '[ScreenshotCapture] image has no natural dimensions and lastScreenshot.width is 0; falling back to 1:1 ratio to prevent NaN scale.',
+        );
+      }
+      const naturalWidth = naturalWidthRaw || 1;
       setDisplayScale(renderedWidth / naturalWidth);
     };
-    updateScale();
-    window.addEventListener('resize', updateScale);
-    return () => window.removeEventListener('resize', updateScale);
-    // imageLoaded dependency: with the asset://-resolved img.src, the
-    // first effect run fires BEFORE the bitmap has decoded, so
-    // img.clientWidth is 0 and `displayScale` collapses to 0 — making
-    // the indigo selection overlay render as '0px' and effectively
-    // hide. The `<img onLoad>` handler flips imageLoaded to true
-    // once natural dimensions are populated, at which point this effect
-    // re-runs and the math becomes valid. Without this dep, the user
-    // could drag-select but the rectangle never appeared visually.
+
+    measure();
+
+    // NIT 3: ResizeObserver replaces the brittle window.resize
+    // listener. Catches BOTH the asset:// bitmap's eventual natural-
+    // size reveal AND any subsequent container-driven resize (dialog
+    // resize, devtools toggle, cross-axis layout reflow, screen DPI
+    // change, etc.) — none of which the prior listener caught.
+    const img = imageRef.current;
+    if (!img) return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(img);
+    return () => observer.disconnect();
+    // NIT 2: useLayoutEffect commits the scale synchronously before
+    // paint so the indigo overlay never flashes as 0px on the first
+    // render after a decode. The deps array still tracks imageLoaded
+    // so the post-decode measurement runs as soon as <img onLoad>
+    // fires; lastScreenshot retake the cycle by flipping imageLoaded
+    // back to false first.
   }, [lastScreenshot, imageLoaded]);
 
   const getImageCoordinates = (

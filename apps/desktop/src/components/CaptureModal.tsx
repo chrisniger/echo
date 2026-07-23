@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useLayoutEffect } from 'react';
 import { Camera, Loader2, AlertCircle, Check, X } from 'lucide-react';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import type { AiModel } from '@echo-gpt/shared-types';
@@ -54,6 +54,17 @@ export default function CaptureModal({ sessionId, open, onOpenChange }: CaptureM
   const imageRef = useRef<HTMLImageElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const dragStart = useRef<{ x: number; y: number } | null>(null);
+  // NIT 4 ref-pin: see ScreenshotCapture.tsx for the full rationale.
+  // Gates the measurement block to only run on the false→true
+  // transition of imageLoaded. Resets on !imageLoaded so Retake
+  // re-arms correctly.
+  //
+  // IMPORTANT: this is intentionally a `useRef`, NOT a `useMemo`. They
+  // are not equivalent: `useRef` survives React 19 StrictMode's
+  // mount -> cleanup -> mount cycle and per-dep-change re-runs cleanly;
+  // `useMemo` recomputes per render and would re-pin spuriously. Future
+  // refactorers: keep this as `useRef`.
+  const lastMeasuredLoaded = useRef(false);
 
   const runCapture = useCallback(() => {
     setIsCapturing(true);
@@ -93,24 +104,45 @@ export default function CaptureModal({ sessionId, open, onOpenChange }: CaptureM
     setImageLoaded(false);
   }, [open]);
 
-  useEffect(() => {
-    const updateScale = () => {
+  useLayoutEffect(() => {
+    // NIT 4: ref-pin short-circuit (reset on !imageLoaded so Retake
+    // re-arms). See ScreenshotCapture.tsx for full rationale.
+    if (!imageLoaded) {
+      lastMeasuredLoaded.current = false;
+      return;
+    }
+    if (lastMeasuredLoaded.current) return;
+    lastMeasuredLoaded.current = true;
+
+    const measure = () => {
       const img = imageRef.current;
       if (!img || !lastScreenshot) return;
       const renderedWidth = img.clientWidth;
-      const naturalWidth = img.naturalWidth || lastScreenshot.width;
+      // NIT 1: defensive fallback (see ScreenshotCapture.tsx for the
+      // full write-up). Surface the edge case in devtools via
+      // console.warn so any future Rust or React regression that loses
+      // dimensions produces a visible warning, not a silent NaN.
+      const naturalWidthRaw = img.naturalWidth || lastScreenshot.width;
+      if (!naturalWidthRaw) {
+        console.warn(
+          '[CaptureModal] image has no natural dimensions and lastScreenshot.width is 0; falling back to 1:1 ratio to prevent NaN scale.',
+        );
+      }
+      const naturalWidth = naturalWidthRaw || 1;
       setDisplayScale(renderedWidth / naturalWidth);
     };
-    updateScale();
-    window.addEventListener('resize', updateScale);
-    return () => window.removeEventListener('resize', updateScale);
-    // imageLoaded dependency: synchronizes the displayScale recompute
-    // with the <img> bitmap having decoded. Without imageLoaded, the
-    // first effect run captured `clientWidth = 0` (image hadn't laid
-    // out yet under the asset:// URL) and set displayScale to 0,
-    // causing the indigo selection overlay to render at `0px` and
-    // vanish while the drag handlers still set selection state
-    // invisibly. See ScreenshotCapture.tsx for the longer write-up.
+
+    measure();
+
+    // NIT 3: ResizeObserver catches the asset:// bitmap-decode reveal
+    // AND any subsequent container reflow. Replaces window.resize.
+    const img = imageRef.current;
+    if (!img) return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(img);
+    return () => observer.disconnect();
+    // NIT 2: useLayoutEffect ensures the indigo overlay's first commit
+    // after decode is the correct scale, not a 0px flash.
   }, [lastScreenshot, imageLoaded]);
 
   const getImageCoordinates = (
