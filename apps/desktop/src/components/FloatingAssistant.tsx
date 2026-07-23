@@ -21,18 +21,24 @@ export default function FloatingAssistant({ onClose }: FloatingAssistantProps) {
   const [isDragging, setIsDragging] = useState(false);
   const dragStart = useRef({ x: 0, y: 0 });
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    setIsDragging(true);
-    dragStart.current = { x: e.clientX - position.x, y: e.clientY - position.y };
-  }, [position]);
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      setIsDragging(true);
+      dragStart.current = { x: e.clientX - position.x, y: e.clientY - position.y };
+    },
+    [position],
+  );
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!isDragging) return;
-    setPosition({
-      x: e.clientX - dragStart.current.x,
-      y: e.clientY - dragStart.current.y,
-    });
-  }, [isDragging]);
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent) => {
+      if (!isDragging) return;
+      setPosition({
+        x: e.clientX - dragStart.current.x,
+        y: e.clientY - dragStart.current.y,
+      });
+    },
+    [isDragging],
+  );
 
   const handleMouseUp = useCallback(() => {
     setIsDragging(false);
@@ -45,38 +51,41 @@ export default function FloatingAssistant({ onClose }: FloatingAssistantProps) {
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
       className={cn(
-        'fixed z-50 flex flex-col rounded-lg border border-zinc-800 bg-zinc-900 shadow-2xl transition-all',
+        'fixed z-50 flex flex-col rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xl transition-all',
         isMaximized ? 'inset-4' : 'right-4 bottom-4 w-96',
         isMinimized ? 'h-auto' : 'max-h-[600px]',
       )}
       style={{
         opacity,
-        transform: position.x !== 0 || position.y !== 0
-          ? `translate(${position.x}px, ${position.y}px)`
-          : undefined,
+        transform:
+          position.x !== 0 || position.y !== 0
+            ? `translate(${position.x}px, ${position.y}px)`
+            : undefined,
       }}
     >
       <div
-        className="flex items-center gap-2 border-b border-zinc-800 px-4 py-3 cursor-grab active:cursor-grabbing"
+        className="flex items-center gap-2 border-b border-zinc-200 dark:border-zinc-800 px-4 py-3 cursor-grab active:cursor-grabbing"
         onMouseDown={handleMouseDown}
       >
         <Bot className="h-5 w-5 text-indigo-500" />
-        <span className="text-sm font-medium text-zinc-100 flex-1">Echo Assistant</span>
+        <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100 flex-1">
+          Echo Assistant
+        </span>
         <button
           onClick={() => setIsMinimized(!isMinimized)}
-          className="rounded p-1 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
+          className="rounded p-1 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-200 dark:hover:bg-zinc-800"
         >
           <Minus className="h-4 w-4" />
         </button>
         <button
           onClick={() => setIsMaximized(!isMaximized)}
-          className="rounded p-1 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
+          className="rounded p-1 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-200 dark:hover:bg-zinc-800"
         >
           <Maximize2 className="h-4 w-4" />
         </button>
         <button
           onClick={onClose}
-          className="rounded p-1 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
+          className="rounded p-1 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-200 dark:hover:bg-zinc-800"
         >
           <X className="h-4 w-4" />
         </button>
@@ -98,7 +107,10 @@ export default function FloatingAssistant({ onClose }: FloatingAssistantProps) {
               </TabsList>
             </div>
 
-            <TabsContent value="assistance" className="flex-1 flex flex-col mt-0 data-[state=active]:flex-1 overflow-hidden">
+            <TabsContent
+              value="assistance"
+              className="flex-1 flex flex-col mt-0 data-[state=active]:flex-1 overflow-hidden"
+            >
               <AIAssistance />
             </TabsContent>
 
@@ -107,12 +119,12 @@ export default function FloatingAssistant({ onClose }: FloatingAssistantProps) {
                 <div className="flex flex-col items-center justify-center py-8 text-center">
                   <Subtitles className="h-12 w-12 text-zinc-600 mb-2" />
                   <p className="text-sm text-zinc-500">No transcript yet</p>
-                  <p className="text-xs text-zinc-600 mt-1">Start a session to see the transcript</p>
+                  <p className="text-xs text-zinc-600 mt-1">
+                    Start a session to see the transcript
+                  </p>
                 </div>
               ) : (
-                transcript.map((seg) => (
-                  <Transcript key={seg.id} segment={seg} />
-                ))
+                transcript.map((seg) => <Transcript key={seg.id} segment={seg} />)
               )}
             </TabsContent>
           </Tabs>

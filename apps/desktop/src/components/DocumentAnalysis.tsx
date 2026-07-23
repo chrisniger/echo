@@ -1,5 +1,13 @@
 import { useState, useEffect } from 'react';
-import { FileText, Search, Sparkles, ChevronDown, ChevronRight, Loader2, FileUp } from 'lucide-react';
+import {
+  FileText,
+  Search,
+  Sparkles,
+  ChevronDown,
+  ChevronRight,
+  Loader2,
+  FileUp,
+} from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Button } from './ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from './ui/card';
@@ -31,12 +39,14 @@ export default function DocumentAnalysis() {
 
   useEffect(() => {
     // Convert CV list to document items
-    setDocuments(cvList.map(cv => ({
-      id: cv.id,
-      name: cv.name,
-      status: cv.parsedText ? 'analyzed' : 'pending',
-      parsedText: cv.parsedText,
-    })));
+    setDocuments(
+      cvList.map((cv) => ({
+        id: cv.id,
+        name: cv.name,
+        status: cv.parsedText ? 'analyzed' : 'pending',
+        parsedText: cv.parsedText,
+      })),
+    );
   }, [cvList]);
 
   const toggleExpand = (id: string) => {
@@ -49,7 +59,7 @@ export default function DocumentAnalysis() {
   };
 
   const handleExtractKeyPoints = async (id: string) => {
-    const doc = documents.find(d => d.id === id);
+    const doc = documents.find((d) => d.id === id);
     if (!doc?.parsedText) return;
 
     setExtractingId(id);
@@ -58,12 +68,10 @@ export default function DocumentAnalysis() {
         extractKeyPoints: true,
         summarize: false,
       });
-      
+
       setDocuments((prev) =>
         prev.map((d) =>
-          d.id === id
-            ? { ...d, status: 'analyzed', keyPoints: analysis.keyPoints }
-            : d,
+          d.id === id ? { ...d, status: 'analyzed', keyPoints: analysis.keyPoints } : d,
         ),
       );
     } catch (error) {
@@ -74,7 +82,7 @@ export default function DocumentAnalysis() {
   };
 
   const handleSummarize = async (id: string) => {
-    const doc = documents.find(d => d.id === id);
+    const doc = documents.find((d) => d.id === id);
     if (!doc?.parsedText) return;
 
     setSummarizingId(id);
@@ -83,12 +91,10 @@ export default function DocumentAnalysis() {
         extractKeyPoints: false,
         summarize: true,
       });
-      
+
       setDocuments((prev) =>
         prev.map((d) =>
-          d.id === id
-            ? { ...d, status: 'analyzed', summary: analysis.summary }
-            : d,
+          d.id === id ? { ...d, status: 'analyzed', summary: analysis.summary } : d,
         ),
       );
     } catch (error) {
@@ -118,7 +124,7 @@ export default function DocumentAnalysis() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search across documents..."
-            className="flex h-10 w-full rounded-md border border-zinc-700 bg-zinc-900 pl-10 pr-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="flex h-10 w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 pl-10 pr-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
         </div>
 
@@ -130,7 +136,10 @@ export default function DocumentAnalysis() {
         ) : (
           <div className="space-y-2">
             {filteredDocs.map((doc) => (
-              <div key={doc.id} className="rounded-lg border border-zinc-800 bg-zinc-900/50">
+              <div
+                key={doc.id}
+                className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-100/50 dark:bg-zinc-900/50"
+              >
                 <button
                   onClick={() => toggleExpand(doc.id)}
                   className="flex w-full items-center gap-3 p-3 text-left"
@@ -141,7 +150,7 @@ export default function DocumentAnalysis() {
                     <ChevronRight className="h-4 w-4 shrink-0 text-zinc-500" />
                   )}
                   <FileText className="h-4 w-4 shrink-0 text-indigo-500" />
-                  <span className="flex-1 text-sm font-medium text-zinc-100 truncate">
+                  <span className="flex-1 text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">
                     {doc.name}
                   </span>
                   <Badge
@@ -149,8 +158,8 @@ export default function DocumentAnalysis() {
                       doc.status === 'analyzed'
                         ? 'success'
                         : doc.status === 'analyzing'
-                        ? 'warning'
-                        : 'secondary'
+                          ? 'warning'
+                          : 'secondary'
                     }
                     className="text-xs"
                   >
@@ -159,7 +168,7 @@ export default function DocumentAnalysis() {
                 </button>
 
                 {expandedDocs.has(doc.id) && (
-                  <div className="border-t border-zinc-800 p-3 space-y-3">
+                  <div className="border-t border-zinc-200 dark:border-zinc-800 p-3 space-y-3">
                     {doc.status === 'pending' && (
                       <div className="flex gap-2">
                         <Button
@@ -195,10 +204,15 @@ export default function DocumentAnalysis() {
 
                     {doc.keyPoints && doc.keyPoints.length > 0 && (
                       <div>
-                        <p className="text-xs font-medium text-zinc-400 mb-1">Key Points</p>
+                        <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
+                          Key Points
+                        </p>
                         <ul className="space-y-1">
                           {doc.keyPoints.map((point, i) => (
-                            <li key={i} className="flex items-start gap-2 text-sm text-zinc-300">
+                            <li
+                              key={i}
+                              className="flex items-start gap-2 text-sm text-zinc-700 dark:text-zinc-300"
+                            >
                               <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-500" />
                               {point}
                             </li>
@@ -209,8 +223,10 @@ export default function DocumentAnalysis() {
 
                     {doc.summary && (
                       <div>
-                        <p className="text-xs font-medium text-zinc-400 mb-1">Summary</p>
-                        <p className="text-sm text-zinc-300">{doc.summary}</p>
+                        <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
+                          Summary
+                        </p>
+                        <p className="text-sm text-zinc-700 dark:text-zinc-300">{doc.summary}</p>
                       </div>
                     )}
                   </div>

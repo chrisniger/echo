@@ -53,11 +53,16 @@ export default function Register() {
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-600/20">
             <Bot className="h-8 w-8 text-indigo-500" />
           </div>
-          <h1 className="mt-4 text-2xl font-bold text-zinc-100">Create account</h1>
-          <p className="mt-2 text-sm text-zinc-400">Get started with Echo GPT</p>
+          <h1 className="mt-4 text-2xl font-bold text-zinc-900 dark:text-zinc-100">
+            Create account
+          </h1>
+          <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">Get started with Echo GPT</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5 rounded-xl border border-zinc-800 bg-zinc-900/50 p-6 backdrop-blur-sm">
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-100/50 dark:bg-zinc-900/50 p-6 backdrop-blur-sm"
+        >
           {error && (
             <div className="rounded-md bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">
               {error}
@@ -97,7 +102,9 @@ export default function Register() {
               placeholder="At least 8 characters"
               autoComplete="new-password"
             />
-            {fieldErrors.password && <p className="mt-1 text-xs text-red-400">{fieldErrors.password}</p>}
+            {fieldErrors.password && (
+              <p className="mt-1 text-xs text-red-400">{fieldErrors.password}</p>
+            )}
           </div>
 
           <div>
@@ -109,7 +116,9 @@ export default function Register() {
               placeholder="Repeat your password"
               autoComplete="new-password"
             />
-            {fieldErrors.confirmPassword && <p className="mt-1 text-xs text-red-400">{fieldErrors.confirmPassword}</p>}
+            {fieldErrors.confirmPassword && (
+              <p className="mt-1 text-xs text-red-400">{fieldErrors.confirmPassword}</p>
+            )}
           </div>
 
           <Button type="submit" className="w-full" disabled={isLoading}>
@@ -117,7 +126,7 @@ export default function Register() {
             {isLoading ? 'Creating account...' : 'Create account'}
           </Button>
 
-          <p className="text-center text-sm text-zinc-400">
+          <p className="text-center text-sm text-zinc-500 dark:text-zinc-400">
             Already have an account?{' '}
             <Link to="/login" className="text-indigo-400 hover:text-indigo-300">
               Sign in

@@ -18,7 +18,7 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <Sentry.ErrorBoundary
       fallback={
-        <div className="p-8 text-center text-zinc-400">
+        <div className="p-8 text-center text-zinc-500 dark:text-zinc-400">
           Something went wrong. Please refresh the page.
         </div>
       }

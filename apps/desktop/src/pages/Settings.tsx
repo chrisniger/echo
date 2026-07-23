@@ -140,7 +140,7 @@ export default function Settings() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-8">
-      <h1 className="text-3xl font-bold text-zinc-100">Settings</h1>
+      <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">Settings</h1>
 
       <Section title="General" icon={<Sun className="h-5 w-5 text-amber-500" />}>
         <div className="space-y-1.5">
@@ -276,7 +276,7 @@ export default function Settings() {
             step="0.05"
             value={settings.floatingAssistantOpacity}
             onChange={(e) => updateSetting('floatingAssistantOpacity', parseFloat(e.target.value))}
-            className="w-full h-2 rounded-full appearance-none bg-zinc-800 cursor-pointer accent-indigo-500"
+            className="w-full h-2 rounded-full appearance-none bg-zinc-100 dark:bg-zinc-800 cursor-pointer accent-indigo-500"
           />
         </div>
       </Section>
@@ -286,10 +286,12 @@ export default function Settings() {
           {Object.entries<string>(settings.globalShortcuts).map(([action, key]) => (
             <div
               key={action}
-              className="flex items-center justify-between rounded-md bg-zinc-800 px-4 py-2"
+              className="flex items-center justify-between rounded-md bg-zinc-100 dark:bg-zinc-800 px-4 py-2"
             >
-              <span className="text-sm text-zinc-300 capitalize">{action.replace(/-/g, ' ')}</span>
-              <kbd className="rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-zinc-400 font-mono">
+              <span className="text-sm text-zinc-700 dark:text-zinc-300 capitalize">
+                {action.replace(/-/g, ' ')}
+              </span>
+              <kbd className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2 py-1 text-xs text-zinc-500 dark:text-zinc-400 font-mono">
                 {key}
               </kbd>
             </div>
@@ -395,8 +397,10 @@ export default function Settings() {
           </Button>
         </div>
 
-        <div className="border-t border-zinc-800 pt-4 mt-4">
-          <p className="text-sm font-medium text-zinc-300 mb-4">Change Password</p>
+        <div className="border-t border-zinc-200 dark:border-zinc-800 pt-4 mt-4">
+          <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-4">
+            Change Password
+          </p>
           <div className="space-y-3">
             <Input
               label="Current Password"
@@ -530,7 +534,7 @@ function QuestionTriggersEditor() {
             }
           }}
           placeholder='e.g. "i was wondering"'
-          className="flex h-10 flex-1 rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
+          className="flex h-10 flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
         />
         <Button type="button" onClick={addPhrase} className="gap-1">
           <Plus className="h-4 w-4" /> Add
@@ -618,7 +622,7 @@ function QuestionDetectionSettings() {
           step="0.05"
           value={qd.threshold}
           onChange={(e) => set('threshold', parseFloat(e.target.value))}
-          className="w-full h-2 rounded-full appearance-none bg-zinc-800 cursor-pointer accent-fuchsia-500"
+          className="w-full h-2 rounded-full appearance-none bg-zinc-100 dark:bg-zinc-800 cursor-pointer accent-fuchsia-500"
         />
         <p className="text-xs text-zinc-500">
           Segments below this confidence are ignored. Default 70% balances precision and recall.
@@ -634,7 +638,7 @@ function QuestionDetectionSettings() {
           step="5000"
           value={qd.cooldownMs ?? 15000}
           onChange={(e) => set('cooldownMs', parseInt(e.target.value, 10))}
-          className="w-full h-2 rounded-full appearance-none bg-zinc-800 cursor-pointer accent-fuchsia-500"
+          className="w-full h-2 rounded-full appearance-none bg-zinc-100 dark:bg-zinc-800 cursor-pointer accent-fuchsia-500"
         />
         <p className="text-xs text-zinc-500">
           Minimum wait between AI responses. Default 15s prevents spam; shorter values feel more
@@ -651,7 +655,7 @@ function QuestionDetectionSettings() {
           step="1"
           value={qd.contextWindowSize}
           onChange={(e) => set('contextWindowSize', parseInt(e.target.value, 10))}
-          className="w-full h-2 rounded-full appearance-none bg-zinc-800 cursor-pointer accent-fuchsia-500"
+          className="w-full h-2 rounded-full appearance-none bg-zinc-100 dark:bg-zinc-800 cursor-pointer accent-fuchsia-500"
         />
         <p className="text-xs text-zinc-500">
           How many previous transcript segments the engine keeps in memory. Larger = better
@@ -762,9 +766,9 @@ function LayerToggle({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <div className="flex items-start justify-between gap-3 rounded-md border border-zinc-800 bg-zinc-900/50 p-3">
+    <div className="flex items-start justify-between gap-3 rounded-md border border-zinc-200 dark:border-zinc-800 bg-zinc-100/50 dark:bg-zinc-900/50 p-3">
       <div>
-        <div className="flex items-center gap-2 text-sm font-medium text-zinc-100">
+        <div className="flex items-center gap-2 text-sm font-medium text-zinc-900 dark:text-zinc-100">
           {icon} {title}
         </div>
         <p className="text-xs text-zinc-500 mt-0.5">{description}</p>
@@ -792,7 +796,7 @@ function PatternDraftInput({ onAdd }: { onAdd: (raw: string) => void }) {
           }
         }}
         placeholder='e.g. "walk me through" or "category:Technical: how does X work"'
-        className="flex h-10 flex-1 rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+        className="flex h-10 flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-cyan-500"
       />
       <Button
         type="button"

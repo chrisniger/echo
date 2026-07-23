@@ -141,8 +141,8 @@ export default function SessionDetail() {
   if (isLoading || !currentSession) {
     return (
       <div className="space-y-4">
-        <div className="h-8 w-64 animate-pulse rounded bg-zinc-800" />
-        <div className="h-96 animate-pulse rounded-lg bg-zinc-800" />
+        <div className="h-8 w-64 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
+        <div className="h-96 animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-800" />
       </div>
     );
   }
@@ -156,7 +156,9 @@ export default function SessionDetail() {
           </Button>
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-zinc-100">{currentSession.name}</h1>
+              <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
+                {currentSession.name}
+              </h1>
               <Badge variant={statusLabels[currentSession.status] || 'secondary'}>
                 {currentSession.status}
               </Badge>
@@ -167,7 +169,7 @@ export default function SessionDetail() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-7 gap-1 px-2 text-xs text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
+                      className="h-7 gap-1 px-2 text-xs text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100"
                       aria-label="Reclassify session type"
                     >
                       <Tag className="h-3.5 w-3.5" />
@@ -194,7 +196,11 @@ export default function SessionDetail() {
                             <span className="h-3.5 w-3.5 flex-none" />
                           )}
                           <span
-                            className={isCurrent ? 'font-semibold text-zinc-100' : 'text-zinc-300'}
+                            className={
+                              isCurrent
+                                ? 'font-semibold text-zinc-900 dark:text-zinc-100'
+                                : 'text-zinc-700 dark:text-zinc-300'
+                            }
                           >
                             {t}
                           </span>
@@ -356,7 +362,7 @@ export default function SessionDetail() {
         >
           <CardContent className="flex items-center gap-4 p-4">
             <div
-              className={`flex h-12 w-12 items-center justify-center rounded-full ${bgCapture.isCapturing ? 'bg-emerald-500/20' : bgCapture.error ? 'bg-red-500/20' : 'bg-zinc-700/40'}`}
+              className={`flex h-12 w-12 items-center justify-center rounded-full ${bgCapture.isCapturing ? 'bg-emerald-500/20' : bgCapture.error ? 'bg-red-500/20' : 'bg-zinc-200/40 dark:bg-zinc-700/40'}`}
             >
               {bgCapture.isCapturing ? (
                 <Mic className="h-6 w-6 text-emerald-500" />
@@ -367,14 +373,14 @@ export default function SessionDetail() {
               )}
             </div>
             <div className="flex-1">
-              <p className="font-medium text-zinc-100">
+              <p className="font-medium text-zinc-900 dark:text-zinc-100">
                 {bgCapture.error
                   ? 'Audio capture failed'
                   : bgCapture.isCapturing
                     ? `Listening (${bgCapture.source})`
                     : 'Starting audio capture…'}
               </p>
-              <p className="text-sm text-zinc-400">
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">
                 {bgCapture.error
                   ? bgCapture.error
                   : bgCapture.isCapturing
@@ -422,7 +428,7 @@ export default function SessionDetail() {
             <Card>
               <CardContent className="flex flex-col items-center py-12">
                 <Activity className="h-12 w-12 text-zinc-700 mb-3" />
-                <p className="text-zinc-400">No transcript segments yet</p>
+                <p className="text-zinc-500 dark:text-zinc-400">No transcript segments yet</p>
                 {currentSession.status === 'active' && (
                   <p className="mt-2 text-sm text-zinc-500">
                     Transcript will appear here as audio is captured
@@ -452,13 +458,15 @@ export default function SessionDetail() {
                       {new Date(resp.createdAt).toLocaleString()}
                     </span>
                   </div>
-                  <div className="mb-3 rounded-md bg-zinc-800/50 p-3">
+                  <div className="mb-3 rounded-md bg-zinc-50/50 dark:bg-zinc-800/50 p-3">
                     <p className="text-xs text-zinc-500 mb-1">Query</p>
-                    <p className="text-sm text-zinc-300">{resp.query}</p>
+                    <p className="text-sm text-zinc-700 dark:text-zinc-300">{resp.query}</p>
                   </div>
                   <div>
                     <p className="text-xs text-zinc-500 mb-1">Response</p>
-                    <p className="text-sm text-zinc-100 whitespace-pre-wrap">{resp.response}</p>
+                    <p className="text-sm text-zinc-900 dark:text-zinc-100 whitespace-pre-wrap">
+                      {resp.response}
+                    </p>
                   </div>
                 </CardContent>
               </Card>
@@ -467,7 +475,7 @@ export default function SessionDetail() {
             <Card>
               <CardContent className="flex flex-col items-center py-12">
                 <Activity className="h-12 w-12 text-zinc-700 mb-3" />
-                <p className="text-zinc-400">No AI responses yet</p>
+                <p className="text-zinc-500 dark:text-zinc-400">No AI responses yet</p>
               </CardContent>
             </Card>
           )}
@@ -492,23 +500,33 @@ export default function SessionDetail() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-xs text-zinc-500">Status</p>
-                  <p className="text-sm text-zinc-300 capitalize">{currentSession.status}</p>
+                  <p className="text-sm text-zinc-700 dark:text-zinc-300 capitalize">
+                    {currentSession.status}
+                  </p>
                 </div>
                 <div>
                   <p className="text-xs text-zinc-500">AI Model</p>
-                  <p className="text-sm text-zinc-300">{currentSession.aiModel}</p>
+                  <p className="text-sm text-zinc-700 dark:text-zinc-300">
+                    {currentSession.aiModel}
+                  </p>
                 </div>
                 <div>
                   <p className="text-xs text-zinc-500">Response Style</p>
-                  <p className="text-sm text-zinc-300 capitalize">{currentSession.responseStyle}</p>
+                  <p className="text-sm text-zinc-700 dark:text-zinc-300 capitalize">
+                    {currentSession.responseStyle}
+                  </p>
                 </div>
                 <div>
                   <p className="text-xs text-zinc-500">Language</p>
-                  <p className="text-sm text-zinc-300">{currentSession.language.toUpperCase()}</p>
+                  <p className="text-sm text-zinc-700 dark:text-zinc-300">
+                    {currentSession.language.toUpperCase()}
+                  </p>
                 </div>
                 <div>
                   <p className="text-xs text-zinc-500">Audio Source</p>
-                  <p className="text-sm text-zinc-300 capitalize">{currentSession.audioSource}</p>
+                  <p className="text-sm text-zinc-700 dark:text-zinc-300 capitalize">
+                    {currentSession.audioSource}
+                  </p>
                 </div>
                 <div>
                   <p className="text-xs text-zinc-500">Session Type</p>
@@ -518,17 +536,19 @@ export default function SessionDetail() {
                 </div>
                 <div>
                   <p className="text-xs text-zinc-500">Duration</p>
-                  <p className="text-sm text-zinc-300">{currentSession.duration} minutes</p>
+                  <p className="text-sm text-zinc-700 dark:text-zinc-300">
+                    {currentSession.duration} minutes
+                  </p>
                 </div>
                 <div>
                   <p className="text-xs text-zinc-500">Started</p>
-                  <p className="text-sm text-zinc-300">
+                  <p className="text-sm text-zinc-700 dark:text-zinc-300">
                     {new Date(currentSession.startedAt).toLocaleString()}
                   </p>
                 </div>
                 <div>
                   <p className="text-xs text-zinc-500">Ended</p>
-                  <p className="text-sm text-zinc-300">
+                  <p className="text-sm text-zinc-700 dark:text-zinc-300">
                     {currentSession.endedAt
                       ? new Date(currentSession.endedAt).toLocaleString()
                       : 'N/A'}
@@ -539,30 +559,32 @@ export default function SessionDetail() {
               {currentSession.summary && (
                 <div>
                   <p className="text-xs text-zinc-500 mb-1">Summary</p>
-                  <p className="text-sm text-zinc-300">{currentSession.summary}</p>
+                  <p className="text-sm text-zinc-700 dark:text-zinc-300">
+                    {currentSession.summary}
+                  </p>
                 </div>
               )}
 
               <div>
                 <p className="text-xs text-zinc-500 mb-3">Statistics</p>
                 <div className="grid grid-cols-3 gap-4">
-                  <div className="rounded-lg bg-zinc-800 p-3 text-center">
+                  <div className="rounded-lg bg-zinc-100 dark:bg-zinc-800 p-3 text-center">
                     <FileText className="mx-auto mb-1 h-5 w-5 text-indigo-500" />
-                    <p className="text-lg font-bold text-zinc-100">
+                    <p className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
                       {currentSession.transcriptCount}
                     </p>
                     <p className="text-xs text-zinc-500">Transcripts</p>
                   </div>
-                  <div className="rounded-lg bg-zinc-800 p-3 text-center">
+                  <div className="rounded-lg bg-zinc-100 dark:bg-zinc-800 p-3 text-center">
                     <Activity className="mx-auto mb-1 h-5 w-5 text-emerald-500" />
-                    <p className="text-lg font-bold text-zinc-100">
+                    <p className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
                       {currentSession.aiResponseCount}
                     </p>
                     <p className="text-xs text-zinc-500">Responses</p>
                   </div>
-                  <div className="rounded-lg bg-zinc-800 p-3 text-center">
+                  <div className="rounded-lg bg-zinc-100 dark:bg-zinc-800 p-3 text-center">
                     <Image className="mx-auto mb-1 h-5 w-5 text-amber-500" />
-                    <p className="text-lg font-bold text-zinc-100">
+                    <p className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
                       {currentSession.screenshotCount}
                     </p>
                     <p className="text-xs text-zinc-500">Screenshots</p>

@@ -11,6 +11,25 @@
   --brand-danger: #ef4444;
 }
 
+/*
+ * Body fallback colors — used during the moments before Tailwind
+ * activates its `dark:` variants. The pre-React inline script in
+ * index.html toggles the `dark` class on <html>; the rules below
+ * pick that up to give a correctly themed white/dark body background
+ * even if a paint happens before the React bundle finishes loading.
+ *
+ * Default = light (white + near-black text), matches Tailwind's
+ * no-class default. `html.dark` overrides to dark zinc.
+ */
+body {
+  background-color: #ffffff;
+  color: #18181b;
+}
+html.dark body {
+  background-color: #09090b;
+  color: #f4f4f5;
+}
+
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;

@@ -39,11 +39,16 @@ export default function Login() {
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-600/20">
             <Bot className="h-8 w-8 text-indigo-500" />
           </div>
-          <h1 className="mt-4 text-2xl font-bold text-zinc-100">Welcome back</h1>
-          <p className="mt-2 text-sm text-zinc-400">Sign in to your Echo GPT account</p>
+          <h1 className="mt-4 text-2xl font-bold text-zinc-900 dark:text-zinc-100">Welcome back</h1>
+          <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+            Sign in to your Echo GPT account
+          </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5 rounded-xl border border-zinc-800 bg-zinc-900/50 p-6 backdrop-blur-sm">
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-100/50 dark:bg-zinc-900/50 p-6 backdrop-blur-sm"
+        >
           {error && (
             <div className="rounded-md bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">
               {error}
@@ -60,7 +65,10 @@ export default function Login() {
           />
 
           <div className="space-y-1.5">
-            <label htmlFor="password" className="text-sm font-medium text-zinc-300">
+            <label
+              htmlFor="password"
+              className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
+            >
               Password
             </label>
             <div className="relative">
@@ -71,12 +79,12 @@ export default function Login() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 autoComplete="current-password"
-                className="flex h-10 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 pr-10 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="flex h-10 w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 pr-10 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-300"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
               >
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
@@ -89,9 +97,9 @@ export default function Login() {
                 type="checkbox"
                 checked={rememberMe}
                 onChange={(e) => setRememberMe(e.target.checked)}
-                className="h-4 w-4 rounded border-zinc-700 bg-zinc-900 text-indigo-600 focus:ring-indigo-500"
+                className="h-4 w-4 rounded border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-indigo-600 focus:ring-indigo-500"
               />
-              <span className="text-sm text-zinc-400">Remember me</span>
+              <span className="text-sm text-zinc-500 dark:text-zinc-400">Remember me</span>
             </label>
             <button type="button" className="text-sm text-indigo-400 hover:text-indigo-300">
               Forgot password?
@@ -103,7 +111,7 @@ export default function Login() {
             {isLoading ? 'Signing in...' : 'Sign in'}
           </Button>
 
-          <p className="text-center text-sm text-zinc-400">
+          <p className="text-center text-sm text-zinc-500 dark:text-zinc-400">
             Don&apos;t have an account?{' '}
             <Link to="/register" className="text-indigo-400 hover:text-indigo-300">
               Create one

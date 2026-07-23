@@ -27,11 +27,14 @@ export default function Dashboard() {
   const thisMonthSessions = sessions.filter((s) => {
     const sessionDate = new Date(s.startedAt);
     const now = new Date();
-    return sessionDate.getMonth() === now.getMonth() && sessionDate.getFullYear() === now.getFullYear();
+    return (
+      sessionDate.getMonth() === now.getMonth() && sessionDate.getFullYear() === now.getFullYear()
+    );
   }).length;
-  const avgDuration = sessions.length > 0
-    ? Math.round(sessions.reduce((acc, s) => acc + s.duration, 0) / sessions.length)
-    : 0;
+  const avgDuration =
+    sessions.length > 0
+      ? Math.round(sessions.reduce((acc, s) => acc + s.duration, 0) / sessions.length)
+      : 0;
 
   const stats = [
     { label: 'Total Sessions', value: totalSessions, icon: Activity },
@@ -43,10 +46,10 @@ export default function Dashboard() {
     <div className="mx-auto max-w-5xl space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-zinc-100">
+          <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
             Welcome back, {user?.name?.split(' ')[0] || 'User'}
           </h1>
-          <p className="mt-1 text-zinc-400">Ready to start a new session?</p>
+          <p className="mt-1 text-zinc-500 dark:text-zinc-400">Ready to start a new session?</p>
         </div>
         <Button onClick={() => navigate('/new-session')} className="gap-2">
           <PlusCircle className="h-5 w-5" />
@@ -62,8 +65,8 @@ export default function Dashboard() {
                 <stat.icon className="h-6 w-6 text-indigo-500" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-zinc-100">{stat.value}</p>
-                <p className="text-sm text-zinc-400">{stat.label}</p>
+                <p className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{stat.value}</p>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">{stat.label}</p>
               </div>
             </CardContent>
           </Card>
@@ -71,11 +74,13 @@ export default function Dashboard() {
       </div>
 
       <div>
-        <h2 className="mb-4 text-lg font-semibold text-zinc-100">Recent Sessions</h2>
+        <h2 className="mb-4 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+          Recent Sessions
+        </h2>
         {isLoading ? (
           <div className="space-y-3">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-24 animate-pulse rounded-lg bg-zinc-800" />
+              <div key={i} className="h-24 animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-800" />
             ))}
           </div>
         ) : recentSessions.length > 0 ? (
@@ -83,12 +88,14 @@ export default function Dashboard() {
             {recentSessions.map((session) => (
               <Card
                 key={session.id}
-                className="cursor-pointer transition-colors hover:border-zinc-700"
+                className="cursor-pointer transition-colors hover:border-zinc-300 dark:hover:border-zinc-700"
                 onClick={() => navigate(`/sessions/${session.id}`)}
               >
                 <CardContent className="flex items-center justify-between p-4">
                   <div className="min-w-0 flex-1">
-                    <p className="font-medium text-zinc-100 truncate">{session.name}</p>
+                    <p className="font-medium text-zinc-900 dark:text-zinc-100 truncate">
+                      {session.name}
+                    </p>
                     <div className="mt-1 flex items-center gap-3 text-sm text-zinc-500">
                       <span>{new Date(session.startedAt).toLocaleDateString()}</span>
                       <span>{session.duration}m</span>
@@ -106,7 +113,7 @@ export default function Dashboard() {
           <Card>
             <CardContent className="flex flex-col items-center py-12">
               <Activity className="h-12 w-12 text-zinc-600 mb-4" />
-              <p className="text-zinc-400">No sessions yet</p>
+              <p className="text-zinc-500 dark:text-zinc-400">No sessions yet</p>
               <Button className="mt-4" onClick={() => navigate('/new-session')}>
                 Start your first session
               </Button>
@@ -116,33 +123,35 @@ export default function Dashboard() {
       </div>
 
       <div>
-        <h2 className="mb-4 text-lg font-semibold text-zinc-100">Quick Actions</h2>
+        <h2 className="mb-4 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+          Quick Actions
+        </h2>
         <div className="grid gap-4 sm:grid-cols-3">
           <Card
-            className="cursor-pointer transition-colors hover:border-zinc-700"
+            className="cursor-pointer transition-colors hover:border-zinc-300 dark:hover:border-zinc-700"
             onClick={() => navigate('/new-session')}
           >
             <CardContent className="flex flex-col items-center py-8">
               <PlusCircle className="h-8 w-8 text-indigo-500 mb-2" />
-              <p className="font-medium text-zinc-100">New Session</p>
+              <p className="font-medium text-zinc-900 dark:text-zinc-100">New Session</p>
             </CardContent>
           </Card>
           <Card
-            className="cursor-pointer transition-colors hover:border-zinc-700"
+            className="cursor-pointer transition-colors hover:border-zinc-300 dark:hover:border-zinc-700"
             onClick={() => navigate('/history')}
           >
             <CardContent className="flex flex-col items-center py-8">
               <History className="h-8 w-8 text-emerald-500 mb-2" />
-              <p className="font-medium text-zinc-100">View History</p>
+              <p className="font-medium text-zinc-900 dark:text-zinc-100">View History</p>
             </CardContent>
           </Card>
           <Card
-            className="cursor-pointer transition-colors hover:border-zinc-700"
+            className="cursor-pointer transition-colors hover:border-zinc-300 dark:hover:border-zinc-700"
             onClick={() => navigate('/settings')}
           >
             <CardContent className="flex flex-col items-center py-8">
               <Settings className="h-8 w-8 text-amber-500 mb-2" />
-              <p className="font-medium text-zinc-100">Settings</p>
+              <p className="font-medium text-zinc-900 dark:text-zinc-100">Settings</p>
             </CardContent>
           </Card>
         </div>

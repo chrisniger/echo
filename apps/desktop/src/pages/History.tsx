@@ -4,11 +4,14 @@ import { Search, Calendar, Clock, Activity } from 'lucide-react';
 import { useSessionStore } from '../stores/session';
 import { Card, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../components/ui/select';
 import {
-  SESSION_TYPE_VALUES,
-  SessionTypeBadge,
-} from '../components/SessionTypeBadge';
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '../components/ui/select';
+import { SESSION_TYPE_VALUES, SessionTypeBadge } from '../components/SessionTypeBadge';
 import { isSessionType, type SessionType } from '@echo-gpt/shared-types';
 
 const statusLabels: Record<string, 'default' | 'success' | 'warning' | 'secondary'> = {
@@ -61,7 +64,7 @@ export default function History() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
-      <h1 className="text-3xl font-bold text-zinc-100">Session History</h1>
+      <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">Session History</h1>
 
       <div className="flex flex-col gap-4 sm:flex-row">
         <div className="relative flex-1">
@@ -71,7 +74,7 @@ export default function History() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search sessions..."
-            className="flex h-10 w-full rounded-md border border-zinc-700 bg-zinc-900 pl-10 pr-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="flex h-10 w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 pl-10 pr-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
         </div>
         <div className="flex gap-2">
@@ -82,7 +85,9 @@ export default function History() {
             <SelectContent>
               <SelectItem value="all">All Models</SelectItem>
               {uniqueModels.map((m) => (
-                <SelectItem key={m} value={m}>{m}</SelectItem>
+                <SelectItem key={m} value={m}>
+                  {m}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -107,7 +112,9 @@ export default function History() {
             <SelectContent>
               <SelectItem value={ALL_TYPES}>All Types</SelectItem>
               {SESSION_TYPE_VALUES.map((t) => (
-                <SelectItem key={t} value={t}>{t}</SelectItem>
+                <SelectItem key={t} value={t}>
+                  {t}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -117,7 +124,7 @@ export default function History() {
       {isLoading ? (
         <div className="space-y-3">
           {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="h-28 animate-pulse rounded-lg bg-zinc-800" />
+            <div key={i} className="h-28 animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-800" />
           ))}
         </div>
       ) : filteredSessions.length > 0 ? (
@@ -125,14 +132,16 @@ export default function History() {
           {filteredSessions.map((session) => (
             <Card
               key={session.id}
-              className="cursor-pointer transition-colors hover:border-zinc-700"
+              className="cursor-pointer transition-colors hover:border-zinc-300 dark:hover:border-zinc-700"
               onClick={() => navigate(`/sessions/${session.id}`)}
             >
               <CardContent className="p-5">
                 <div className="flex items-start justify-between">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <h3 className="font-semibold text-zinc-100 truncate">{session.name}</h3>
+                      <h3 className="font-semibold text-zinc-900 dark:text-zinc-100 truncate">
+                        {session.name}
+                      </h3>
                       <SessionTypeBadge
                         type={session.sessionType}
                         shortLabel={{ Brainstorming: 'Brainstorm', 'Customer Support': 'Support' }}
@@ -154,7 +163,10 @@ export default function History() {
                     {session.tags.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         {session.tags.map((tag: string) => (
-                          <span key={tag} className="rounded-full bg-zinc-800 px-2 py-0.5 text-xs text-zinc-400">
+                          <span
+                            key={tag}
+                            className="rounded-full bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 text-xs text-zinc-500 dark:text-zinc-400"
+                          >
                             {tag}
                           </span>
                         ))}
@@ -173,7 +185,7 @@ export default function History() {
         <Card>
           <CardContent className="flex flex-col items-center py-16">
             <Activity className="h-16 w-16 text-zinc-700 mb-4" />
-            <p className="text-lg text-zinc-400">No sessions found</p>
+            <p className="text-lg text-zinc-500 dark:text-zinc-400">No sessions found</p>
             <p className="mt-1 text-sm text-zinc-600">
               {search || modelFilter !== 'all' || statusFilter !== 'all' || typeFilter !== null
                 ? 'Try adjusting your search or filters'

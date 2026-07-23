@@ -323,7 +323,7 @@ export default function ScreenshotCapture({ sessionId }: ScreenshotCaptureProps)
 
         {lastScreenshot && (
           <div className="space-y-3">
-            <p className="text-sm text-zinc-400" id="screenshot-selection-help">
+            <p className="text-sm text-zinc-500 dark:text-zinc-400" id="screenshot-selection-help">
               Drag to select an area, then click Analyze. Or focus the screenshot area and use arrow
               keys to move, Shift+arrow to resize, Alt+arrow for fine adjustment, Enter to analyze,
               Escape to clear.
@@ -334,7 +334,7 @@ export default function ScreenshotCapture({ sessionId }: ScreenshotCaptureProps)
               role="group"
               aria-label="Screenshot selection area"
               aria-describedby="screenshot-selection-help"
-              className="relative inline-block max-w-full cursor-crosshair select-none touch-none rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-zinc-950"
+              className="relative inline-block max-w-full cursor-crosshair select-none touch-none rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-zinc-950"
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
@@ -349,7 +349,7 @@ export default function ScreenshotCapture({ sessionId }: ScreenshotCaptureProps)
                 ref={imageRef}
                 src={`file://${lastScreenshot.path}`}
                 alt="Screenshot"
-                className="max-w-full h-auto rounded-md border border-zinc-700"
+                className="max-w-full h-auto rounded-md border border-zinc-300 dark:border-zinc-700"
                 draggable={false}
               />
               {selection && (

@@ -9,7 +9,7 @@ function Skeleton({ className, variant = 'text', ...props }: SkeletonProps) {
   return (
     <div
       className={cn(
-        'animate-pulse bg-zinc-800',
+        'animate-pulse bg-zinc-100 dark:bg-zinc-800',
         variant === 'circular' && 'rounded-full',
         variant === 'rectangular' && 'rounded-lg',
         variant === 'text' && 'h-4 w-full rounded',

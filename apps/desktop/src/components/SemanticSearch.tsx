@@ -1,6 +1,14 @@
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Calendar, Filter, X, Clock, MessageSquare, FileText as FileTextIcon } from 'lucide-react';
+import {
+  Search,
+  Calendar,
+  Filter,
+  X,
+  Clock,
+  MessageSquare,
+  FileText as FileTextIcon,
+} from 'lucide-react';
 import { useSearchStore } from '../stores/search';
 import { cn } from '../lib/utils';
 import { Button } from './ui/button';
@@ -21,7 +29,8 @@ const typeColors: Record<string, string> = {
 };
 
 export default function SemanticSearch() {
-  const { query, results, isSearching, filters, search, clearSearch, setFilters } = useSearchStore();
+  const { query, results, isSearching, filters, search, clearSearch, setFilters } =
+    useSearchStore();
   const navigate = useNavigate();
   const [localQuery, setLocalQuery] = useState(query);
   const [showFilters, setShowFilters] = useState(false);
@@ -81,7 +90,7 @@ export default function SemanticSearch() {
               onChange={(e) => setLocalQuery(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Search across all sessions..."
-              className="flex h-10 w-full rounded-md border border-zinc-700 bg-zinc-900 pl-10 pr-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="flex h-10 w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 pl-10 pr-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
           <Button onClick={handleSearch} disabled={isSearching || !localQuery.trim()}>
@@ -98,10 +107,12 @@ export default function SemanticSearch() {
         </div>
 
         {showFilters && (
-          <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4 space-y-3">
+          <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-100/50 dark:bg-zinc-900/50 p-4 space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-medium text-zinc-400 mb-1 block">From</label>
+                <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1 block">
+                  From
+                </label>
                 <Input
                   type="date"
                   value={dateFrom}
@@ -110,7 +121,9 @@ export default function SemanticSearch() {
                 />
               </div>
               <div>
-                <label className="text-xs font-medium text-zinc-400 mb-1 block">To</label>
+                <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1 block">
+                  To
+                </label>
                 <Input
                   type="date"
                   value={dateTo}
@@ -129,8 +142,14 @@ export default function SemanticSearch() {
           <div className="flex items-center justify-center py-8">
             <div className="flex gap-1">
               <div className="h-2 w-2 animate-bounce rounded-full bg-indigo-500" />
-              <div className="h-2 w-2 animate-bounce rounded-full bg-indigo-500" style={{ animationDelay: '0.1s' }} />
-              <div className="h-2 w-2 animate-bounce rounded-full bg-indigo-500" style={{ animationDelay: '0.2s' }} />
+              <div
+                className="h-2 w-2 animate-bounce rounded-full bg-indigo-500"
+                style={{ animationDelay: '0.1s' }}
+              />
+              <div
+                className="h-2 w-2 animate-bounce rounded-full bg-indigo-500"
+                style={{ animationDelay: '0.2s' }}
+              />
             </div>
           </div>
         )}
@@ -140,7 +159,7 @@ export default function SemanticSearch() {
             {Object.entries(groupedResults).map(([sessionId, sessionResults]) => (
               <div key={sessionId}>
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-sm font-medium text-zinc-300">
+                  <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
                     {sessionResults[0].sessionName}
                   </span>
                   <span className="text-xs text-zinc-500 flex items-center gap-1">
@@ -156,7 +175,7 @@ export default function SemanticSearch() {
                     <button
                       key={result.id}
                       onClick={() => navigate(`/sessions/${result.sessionId}`)}
-                      className="flex w-full items-start gap-3 rounded-md p-3 text-left hover:bg-zinc-800 transition-colors"
+                      className="flex w-full items-start gap-3 rounded-md p-3 text-left hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
                     >
                       <div className={cn('mt-0.5', typeColors[result.type])}>
                         {(() => {
@@ -166,7 +185,7 @@ export default function SemanticSearch() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p
-                          className="text-sm text-zinc-300 line-clamp-2"
+                          className="text-sm text-zinc-700 dark:text-zinc-300 line-clamp-2"
                           dangerouslySetInnerHTML={{
                             __html: highlightSnippet(result.snippet, query),
                           }}

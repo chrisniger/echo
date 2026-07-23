@@ -56,7 +56,7 @@ export default function ConnectedDevices() {
         {connectedDevices.map((device) => (
           <div
             key={device.id}
-            className="flex items-center gap-3 rounded-lg border border-zinc-800 bg-zinc-900/50 p-3"
+            className="flex items-center gap-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-100/50 dark:bg-zinc-900/50 p-3"
           >
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-500/20">
               {device.connected ? (
@@ -67,11 +67,10 @@ export default function ConnectedDevices() {
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <span className="font-medium text-zinc-100 truncate">{device.name}</span>
-                <Badge
-                  variant={device.connected ? 'default' : 'secondary'}
-                  className="text-xs"
-                >
+                <span className="font-medium text-zinc-900 dark:text-zinc-100 truncate">
+                  {device.name}
+                </span>
+                <Badge variant={device.connected ? 'default' : 'secondary'} className="text-xs">
                   {device.connected ? 'Connected' : 'Disconnected'}
                 </Badge>
               </div>
@@ -90,9 +89,7 @@ export default function ConnectedDevices() {
                   <Clock className="h-3 w-3" />
                   {formatLastSync(device.lastSync)}
                 </span>
-                {device.latency !== undefined && (
-                  <span>{device.latency}ms</span>
-                )}
+                {device.latency !== undefined && <span>{device.latency}ms</span>}
               </div>
             </div>
           </div>

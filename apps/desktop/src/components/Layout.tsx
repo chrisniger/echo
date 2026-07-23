@@ -58,16 +58,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const isOnSessionPage = location.pathname.startsWith('/sessions/');
 
   return (
-    <div className="flex h-screen overflow-hidden bg-zinc-950">
+    <div className="flex h-screen overflow-hidden bg-white dark:bg-zinc-950">
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-zinc-800 bg-zinc-900 transition-transform duration-200 lg:static lg:translate-x-0',
+          'fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-zinc-200 bg-zinc-50 transition-transform duration-200 dark:border-zinc-800 dark:bg-zinc-900 lg:static lg:translate-x-0',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full',
         )}
       >
-        <div className="flex h-16 items-center gap-2 border-b border-zinc-800 px-6">
+        <div className="flex h-16 items-center gap-2 border-b border-zinc-200 px-6 dark:border-zinc-800">
           <Bot className="h-8 w-8 text-indigo-500" />
-          <span className="text-xl font-bold text-zinc-100">Echo GPT</span>
+          <span className="text-xl font-bold text-zinc-900 dark:text-zinc-100">Echo GPT</span>
         </div>
 
         <nav className="flex-1 space-y-1 px-3 py-4">
@@ -80,8 +80,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 cn(
                   'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
                   isActive
-                    ? 'bg-zinc-800 text-zinc-100'
-                    : 'text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-100',
+                    ? 'bg-indigo-100 text-indigo-900 dark:bg-zinc-800 dark:text-zinc-100'
+                    : 'text-zinc-500 hover:bg-zinc-200 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/50 dark:hover:text-zinc-100',
                 )
               }
             >
@@ -99,7 +99,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium text-emerald-400">Active Session</p>
-                <p className="text-xs text-zinc-400 truncate">{currentSession.name}</p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
+                  {currentSession.name}
+                </p>
               </div>
             </div>
             <Button
@@ -119,21 +121,30 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </div>
         )}
 
-        <div className="border-t border-zinc-800 p-4">
+        <div className="border-t border-zinc-200 p-4 dark:border-zinc-800">
           <div className="flex items-center gap-3 mb-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-800">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-200 dark:bg-zinc-800">
               {user?.avatarUrl ? (
                 <img src={user.avatarUrl} alt="" className="h-9 w-9 rounded-full object-cover" />
               ) : (
-                <User className="h-5 w-5 text-zinc-400" />
+                <User className="h-5 w-5 text-zinc-500 dark:text-zinc-400" />
               )}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-zinc-100 truncate">{user?.name || 'User'}</p>
-              <p className="text-xs text-zinc-500 truncate">{user?.email || ''}</p>
+              <p className="text-sm font-medium text-zinc-900 truncate dark:text-zinc-100">
+                {user?.name || 'User'}
+              </p>
+              <p className="text-xs text-zinc-500 truncate dark:text-zinc-400">
+                {user?.email || ''}
+              </p>
             </div>
           </div>
-          <Button variant="ghost" size="sm" className="w-full justify-start gap-2 text-zinc-400" onClick={handleLogout}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full justify-start gap-2 text-zinc-500 dark:text-zinc-400"
+            onClick={handleLogout}
+          >
             <LogOut className="h-4 w-4" />
             Sign Out
           </Button>
@@ -148,10 +159,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       )}
 
       <div className="flex flex-1 flex-col min-w-0">
-        <header className="flex h-16 items-center gap-4 border-b border-zinc-800 px-4 lg:px-6">
+        <header className="flex h-16 items-center gap-4 border-b border-zinc-200 px-4 dark:border-zinc-800 lg:px-6">
           <button
             onClick={() => setSidebarOpen(true)}
-            className="text-zinc-400 hover:text-zinc-100 lg:hidden"
+            className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 lg:hidden"
           >
             <Menu className="h-6 w-6" />
           </button>
@@ -169,7 +180,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             variant="ghost"
             size="sm"
             onClick={handleHideToTray}
-            className="gap-2 text-zinc-400"
+            className="gap-2 text-zinc-500 dark:text-zinc-400"
             title="Hide to system tray"
           >
             <Minimize2 className="h-4 w-4" />
@@ -187,14 +198,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </Button>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
-          {children}
-        </main>
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6">{children}</main>
       </div>
 
-      {assistantOpen && (
-        <FloatingAssistant onClose={() => setAssistantOpen(false)} />
-      )}
+      {assistantOpen && <FloatingAssistant onClose={() => setAssistantOpen(false)} />}
 
       <Toasts />
     </div>

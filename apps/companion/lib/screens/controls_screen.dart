@@ -52,19 +52,62 @@ class _ControlsScreenState extends State<ControlsScreen> {
     super.dispose();
   }
 
+  /// Fetch the currently active/paused session from the server.
+  /// Returns null if none is active.
+  Future<String?> _fetchActiveSessionId(ApiService api) async {
+    try {
+      final data = await api.getMap('/sessions');
+      final sessions = data['sessions'] as List<dynamic>? ?? [];
+      for (final s in sessions) {
+        if (s is Map && (s['status'] == 'active' || s['status'] == 'paused')) {
+          return s['id'] as String?;
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
   Future<void> _run(String action) async {
-    final id = _sessionId;
-    if (id == null || _busy) return;
+    if (_busy) return;
     setState(() => _busy = true);
     try {
       final api = context.read<ApiService>();
-      final result = await api.post('/sessions/$id/$action');
+
+      // Re-fetch the active session from the server before every action.
+      // This prevents stale session IDs when the server restarts or the
+      // token expires and gets refreshed — the session list always comes
+      // from a fresh authenticated request.
+      final freshId = await _fetchActiveSessionId(api);
+      if (freshId == null) {
+        if (!mounted) return;
+        setState(() {
+          _sessionId = null;
+          _status = 'No active session';
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No active session found. Start one on Desktop first.')),
+        );
+        return;
+      }
+
+      // Update our local state with the fresh session info
+      if (freshId != _sessionId) {
+        setState(() => _sessionId = freshId);
+      }
+
+      final result = await api.post('/sessions/$freshId/$action');
       if (!mounted) return;
       setState(() => _status = result['status'] as String? ?? _status);
       final label = action == 'end' ? 'ended' : action == 'pause' ? 'paused' : 'resumed';
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Session $label')));
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Action failed: $e')));
+      if (!mounted) return;
+      // Extract a cleaner message from the error
+      final msg = e.toString().replaceFirst('Exception: ', '');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(msg),
+        backgroundColor: Colors.redAccent,
+      ));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
