@@ -69,7 +69,15 @@ export default function ScreenshotCapture({ sessionId }: ScreenshotCaptureProps)
     updateScale();
     window.addEventListener('resize', updateScale);
     return () => window.removeEventListener('resize', updateScale);
-  }, [lastScreenshot]);
+    // imageLoaded dependency: with the asset://-resolved img.src, the
+    // first effect run fires BEFORE the bitmap has decoded, so
+    // img.clientWidth is 0 and `displayScale` collapses to 0 — making
+    // the indigo selection overlay render as '0px' and effectively
+    // hide. The `<img onLoad>` handler flips imageLoaded to true
+    // once natural dimensions are populated, at which point this effect
+    // re-runs and the math becomes valid. Without this dep, the user
+    // could drag-select but the rectangle never appeared visually.
+  }, [lastScreenshot, imageLoaded]);
 
   const getImageCoordinates = (
     e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>,

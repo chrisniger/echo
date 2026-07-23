@@ -104,7 +104,14 @@ export default function CaptureModal({ sessionId, open, onOpenChange }: CaptureM
     updateScale();
     window.addEventListener('resize', updateScale);
     return () => window.removeEventListener('resize', updateScale);
-  }, [lastScreenshot]);
+    // imageLoaded dependency: synchronizes the displayScale recompute
+    // with the <img> bitmap having decoded. Without imageLoaded, the
+    // first effect run captured `clientWidth = 0` (image hadn't laid
+    // out yet under the asset:// URL) and set displayScale to 0,
+    // causing the indigo selection overlay to render at `0px` and
+    // vanish while the drag handlers still set selection state
+    // invisibly. See ScreenshotCapture.tsx for the longer write-up.
+  }, [lastScreenshot, imageLoaded]);
 
   const getImageCoordinates = (
     e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>,
