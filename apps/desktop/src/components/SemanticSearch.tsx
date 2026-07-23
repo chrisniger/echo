@@ -1,14 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  Search,
-  Calendar,
-  Filter,
-  X,
-  Clock,
-  MessageSquare,
-  FileText as FileTextIcon,
-} from 'lucide-react';
+import { Search, Calendar, Filter, X, MessageSquare, FileText as FileTextIcon } from 'lucide-react';
 import { useSearchStore } from '../stores/search';
 import { cn } from '../lib/utils';
 import { Button } from './ui/button';

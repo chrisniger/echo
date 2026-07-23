@@ -3,7 +3,6 @@ import {
   Sun,
   Moon,
   Monitor,
-  Languages,
   Sparkles,
   Eye,
   Keyboard,
@@ -26,12 +25,7 @@ import type { UserSettings } from '@echo-gpt/shared-types';
 import { getProviderModelGroups } from '@echo-gpt/shared-config';
 import { useSettingsStore } from '../stores/settings';
 import { DEFAULT_QUESTION_TRIGGERS } from '../services/questionDetection';
-import {
-  DEFAULT_INTERVIEW_PATTERNS,
-  type QuestionCategory,
-  SESSION_MODES,
-  type SessionMode,
-} from '../services/intelligence';
+import { DEFAULT_INTERVIEW_PATTERNS } from '../services/intelligence';
 import { useAuthStore } from '../stores/auth';
 import { useToastStore } from '../stores/toast';
 import { api } from '../lib/api';

@@ -9,13 +9,13 @@ import { getWsClient } from './useWebSocket';
 import {
   createQuestionDetectionEngine,
   getPromptTemplate,
-  getSessionTypePrompt,
   getSessionTypeSeed,
   type DetectLog,
   type DetectionResult,
   type EngineConfig,
   type QuestionCategory,
 } from '../services/intelligence';
+import { asRuntimeSession } from '../lib/sessionRuntime';
 import type { SessionType } from '@echo-gpt/shared-types';
 
 export interface CooldownState {
@@ -408,14 +408,15 @@ export function useSessionBackground({
           timestamp: t.startTime || 0,
         }));
 
+      const runtime = asRuntimeSession(session);
       const answer = await fetchAiAnswer({
         question: combinedText,
         questionCategory,
         sessionId: session.id,
         aiModel: session.aiModel || 'deepseek-chat',
-        additionalContext: (session as any).additionalContext || (session as any).context || '',
-        cv: (session as any).cvContent || '',
-        documents: (session as any).documents,
+        additionalContext: runtime?.additionalContext ?? runtime?.context ?? '',
+        cv: runtime?.cvContent ?? '',
+        documents: runtime?.documents,
         language: session.language,
         sessionType: session.sessionType,
         transcriptSegments: recentSegments,

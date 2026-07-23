@@ -1,15 +1,5 @@
 import { useEffect, useState } from 'react';
-import {
-  FileText,
-  Star,
-  Trash2,
-  Eye,
-  Tags,
-  Calendar,
-  ChevronDown,
-  ChevronUp,
-  AlertCircle,
-} from 'lucide-react';
+import { FileText, Star, Trash2, Eye, Tags, Calendar, AlertCircle } from 'lucide-react';
 import { useCvStore } from '../stores/cv';
 import { cn } from '../lib/utils';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '../components/ui/card';
@@ -43,8 +33,7 @@ function formatSize(bytes: number): string {
 }
 
 export default function CvLibrary() {
-  const { cvList, currentCv, isLoading, fetchCvs, uploadCv, deleteCv, setDefaultCv, updateCv } =
-    useCvStore();
+  const { cvList, isLoading, fetchCvs, uploadCv, deleteCv, setDefaultCv, updateCv } = useCvStore();
   const [uploadOpen, setUploadOpen] = useState(false);
   const [detailCvId, setDetailCvId] = useState<string | null>(null);
   const [deleteCvId, setDeleteCvId] = useState<string | null>(null);

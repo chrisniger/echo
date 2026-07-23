@@ -1,5 +1,5 @@
 import { gatewayApi } from '../../lib/api';
-import type { ClassifierOutput, ContextMemory, QuestionCategory, SessionMode } from './types';
+import type { ContextMemory, QuestionCategory, SessionMode } from './types';
 
 export interface ClassifierRequest {
   segment: string;

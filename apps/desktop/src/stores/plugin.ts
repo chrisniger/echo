@@ -15,7 +15,13 @@ export interface Plugin {
   author: string;
   enabled: boolean;
   permissions: PluginPermission[];
-  settings: Record<string, any>;
+  /**
+   * Phase 5: free-form key/value map (jira.apiKey, slack.webhookUrl, etc.).
+   * Consumers only spread (`...p.settings, ...settings`) so the loose
+   * `Record<string, unknown>` shape is fine — no consumer reads individual
+   * fields, and the value is JSON-serialised through zustand persist unchanged.
+   */
+  settings: Record<string, unknown>;
   category: 'integration' | 'productivity' | 'ai' | 'utility';
   icon?: string;
   installedAt: string;
@@ -26,14 +32,14 @@ interface PluginState {
   plugins: Plugin[];
   isLoading: boolean;
   error: string | null;
-  
+
   // Actions
   loadPlugins: () => void;
   installPlugin: (plugin: Omit<Plugin, 'installedAt' | 'updatedAt'>) => void;
   uninstallPlugin: (id: string) => void;
   enablePlugin: (id: string) => void;
   disablePlugin: (id: string) => void;
-  updatePluginSettings: (id: string, settings: Record<string, any>) => void;
+  updatePluginSettings: (id: string, settings: Record<string, unknown>) => void;
   grantPermission: (pluginId: string, permissionName: string) => void;
   revokePermission: (pluginId: string, permissionName: string) => void;
   getPlugin: (id: string) => Plugin | undefined;
@@ -163,13 +169,15 @@ export const usePluginStore = create<PluginState>()(
         try {
           // In a real app, this would load from a backend or config file
           // For now, we'll use the available plugins
-          const plugins: Plugin[] = AVAILABLE_PLUGINS.map(p => ({
+          const plugins: Plugin[] = AVAILABLE_PLUGINS.map((p) => ({
             ...p,
             installedAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
           }));
           set({ plugins, isLoading: false });
-        } catch (error) {
+        } catch {
+          // The plugin list is a static const; error here would mean a
+          // misconfigured bundler. Keep the explicit fallback message.
           set({ error: 'Failed to load plugins', isLoading: false });
         }
       },
@@ -181,97 +189,93 @@ export const usePluginStore = create<PluginState>()(
           installedAt: now,
           updatedAt: now,
         };
-        set(state => ({
+        set((state) => ({
           plugins: [...state.plugins, plugin],
         }));
       },
 
       uninstallPlugin: (id) => {
-        set(state => ({
-          plugins: state.plugins.filter(p => p.id !== id),
+        set((state) => ({
+          plugins: state.plugins.filter((p) => p.id !== id),
         }));
       },
 
       enablePlugin: (id) => {
-        set(state => ({
-          plugins: state.plugins.map(p =>
-            p.id === id
-              ? { ...p, enabled: true, updatedAt: new Date().toISOString() }
-              : p
+        set((state) => ({
+          plugins: state.plugins.map((p) =>
+            p.id === id ? { ...p, enabled: true, updatedAt: new Date().toISOString() } : p,
           ),
         }));
       },
 
       disablePlugin: (id) => {
-        set(state => ({
-          plugins: state.plugins.map(p =>
-            p.id === id
-              ? { ...p, enabled: false, updatedAt: new Date().toISOString() }
-              : p
+        set((state) => ({
+          plugins: state.plugins.map((p) =>
+            p.id === id ? { ...p, enabled: false, updatedAt: new Date().toISOString() } : p,
           ),
         }));
       },
 
       updatePluginSettings: (id, settings) => {
-        set(state => ({
-          plugins: state.plugins.map(p =>
+        set((state) => ({
+          plugins: state.plugins.map((p) =>
             p.id === id
-              ? { ...p, settings: { ...p.settings, ...settings }, updatedAt: new Date().toISOString() }
-              : p
+              ? {
+                  ...p,
+                  settings: { ...p.settings, ...settings },
+                  updatedAt: new Date().toISOString(),
+                }
+              : p,
           ),
         }));
       },
 
       grantPermission: (pluginId, permissionName) => {
-        set(state => ({
-          plugins: state.plugins.map(p =>
+        set((state) => ({
+          plugins: state.plugins.map((p) =>
             p.id === pluginId
               ? {
                   ...p,
-                  permissions: p.permissions.map(perm =>
-                    perm.name === permissionName
-                      ? { ...perm, granted: true }
-                      : perm
+                  permissions: p.permissions.map((perm) =>
+                    perm.name === permissionName ? { ...perm, granted: true } : perm,
                   ),
                   updatedAt: new Date().toISOString(),
                 }
-              : p
+              : p,
           ),
         }));
       },
 
       revokePermission: (pluginId, permissionName) => {
-        set(state => ({
-          plugins: state.plugins.map(p =>
+        set((state) => ({
+          plugins: state.plugins.map((p) =>
             p.id === pluginId
               ? {
                   ...p,
-                  permissions: p.permissions.map(perm =>
-                    perm.name === permissionName
-                      ? { ...perm, granted: false }
-                      : perm
+                  permissions: p.permissions.map((perm) =>
+                    perm.name === permissionName ? { ...perm, granted: false } : perm,
                   ),
                   updatedAt: new Date().toISOString(),
                 }
-              : p
+              : p,
           ),
         }));
       },
 
       getPlugin: (id) => {
-        return get().plugins.find(p => p.id === id);
+        return get().plugins.find((p) => p.id === id);
       },
 
       getEnabledPlugins: () => {
-        return get().plugins.filter(p => p.enabled);
+        return get().plugins.filter((p) => p.enabled);
       },
 
       getPluginsByCategory: (category) => {
-        return get().plugins.filter(p => p.category === category);
+        return get().plugins.filter((p) => p.category === category);
       },
     }),
     {
       name: 'echo-plugin-storage',
-    }
-  )
+    },
+  ),
 );

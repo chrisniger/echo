@@ -1,10 +1,4 @@
-import type {
-  RuleHit,
-  ContextMemory,
-  DetectionResult,
-  QuestionCategory,
-  SessionMode,
-} from './types';
+import type { RuleHit, ContextMemory, QuestionCategory, SessionMode } from './types';
 
 /**
  * Layer 3 — Context memory.

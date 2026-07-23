@@ -62,7 +62,7 @@ export default function AIAssistance() {
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const settings = useSettingsStore((s) => s.settings);
-  const { currentSession, transcript } = useSessionStore();
+  const { currentSession } = useSessionStore();
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -167,8 +167,14 @@ export default function AIAssistance() {
     } catch (error) {
       console.error('[AIAssistance] Error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      const errorDetails =
-        error instanceof Error && 'body' in error ? JSON.stringify((error as any).body) : '';
+      // Surface the gateway's structured error body (if any) without resorting
+      // to `any`. The body shape is intentionally loose — the append-to-string
+      // approach is the same as before, just with a typed narrow.
+      const errorBody =
+        error && typeof error === 'object' && 'body' in error
+          ? (error as { body?: unknown }).body
+          : undefined;
+      const errorDetails = errorBody !== undefined ? JSON.stringify(errorBody) : '';
 
       const message: Message = {
         id: crypto.randomUUID(),

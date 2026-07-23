@@ -72,7 +72,6 @@ const sessionTypeDescriptions: Record<SessionType, string> = {
 export default function NewSession() {
   const navigate = useNavigate();
   const defaultSettings = useSettingsStore((s) => s.settings);
-  const currentSession = useSessionStore((s) => s.currentSession);
   const fetchSessions = useSessionStore((s) => s.fetchSessions);
   const endSession = useSessionStore((s) => s.endSession);
 
