@@ -381,9 +381,19 @@ export default function ScreenshotCapture({ sessionId }: ScreenshotCaptureProps)
               onTouchCancel={handleTouchEnd}
               onKeyDown={handleKeyDown}
             >
+              {/*
+                Phase 6: the WebView blocks arbitrary `file://` URLs
+                (CSP lacks `file:` and the asset-protocol scope isn't
+                configured for `~/Pictures/EchoGPT/...`). Consume the
+                in-memory base64 `dataUrl` produced by the Rust
+                `take_screenshot` command instead so the image renders
+                without asking the user to enable an asset scope.
+                `path` is preserved on ScreenshotResult so a future
+                "Open in Finder / Explorer" button can shell.open() it.
+              */}
               <img
                 ref={imageRef}
-                src={`file://${lastScreenshot.path}`}
+                src={lastScreenshot.dataUrl}
                 alt="Screenshot"
                 className="max-w-full h-auto rounded-md border border-zinc-300 dark:border-zinc-700"
                 draggable={false}
