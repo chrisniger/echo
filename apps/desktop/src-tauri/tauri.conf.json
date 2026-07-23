@@ -25,7 +25,7 @@
       "csp": "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: asset: https://asset.localhost https://*.s3.amazonaws.com; connect-src 'self' http://localhost:4000 http://localhost:4001 ws://localhost:*",
       "assetProtocol": {
         "enable": true,
-        "scope": ["$PICTUREDIR/**"]
+        "scope": ["$PICTUREDIR/**", "$HOME/**"]
       }
     },
     "trayIcon": {

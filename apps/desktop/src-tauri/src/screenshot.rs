@@ -52,11 +52,31 @@ pub fn capture_screenshot() -> Result<ScreenshotResult, String> {
     // Create timestamp for filename
     let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
 
-    // Create screenshots directory if it doesn't exist
-    let screenshot_dir = dirs::picture_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
+    // Create screenshots directory if it doesn't exist.
+    //
+    // Phase 6 screenshot-display debug aid: log the actual path Tauri's
+    // WebView will be asked to load via `convertFileSrc(<absolute path>)`
+    // when the React surface mounts the saved PNG. Before this print,
+    // a screenshot silently failing with 'asset:// scope not configured'
+    // could mean (a) the literal $PICTUREDIR scope didn't expand correctly,
+    // (b) TwoDrive redirect moved picture_dir out of scope, or (c) some
+    // other env-specific resolvery gap — and we couldn't tell which without
+    // a rebuild + devtools session. The eprintln lets us see the resolved
+    // path alongside the Tauri log on stdout when the user next reports a
+    // failure.
+    let resolved_picture_dir = dirs::picture_dir().unwrap_or_else(|| PathBuf::from("."));
+    let screenshot_dir = resolved_picture_dir
         .join("EchoGPT")
         .join("screenshots");
+    // Debug-only diagnostic (stripped from release builds via cfg gate):
+    // helps debug OneDrive-redirect or Tauri $PICTUREDIR expansion issues
+    // without exposing the resolved path to release stdout.
+    #[cfg(debug_assertions)]
+    eprintln!(
+        "[screenshot] saving under resolved picture_dir: {} (full path: {})",
+        resolved_picture_dir.display(),
+        screenshot_dir.display()
+    );
 
     fs::create_dir_all(&screenshot_dir)
         .map_err(|e| format!("Failed to create directory: {}", e))?;
