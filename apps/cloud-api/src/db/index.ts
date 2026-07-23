@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { config } from '../config.js';
-import { schema } from './schema.js';
+import { schema, SCHEMA_SCREENSHOTS } from './schema.js';
 
 // Resolve the project root from this file's location (src/db/index.ts → up two levels).
 // This avoids relying on process.cwd(), which changes when the server is started from
@@ -32,6 +32,12 @@ export function getDb(): Database.Database {
   db.exec(schema);
   ensureCvLibraryColumns(db);
   ensureSessionsColumns(db);
+
+  // Phase 24 — load the screenshots DDL block as a separate exec. The
+  // screenshots table depends on FK to sessions(id) which the main schema
+  // exec has already created. Future Phase 25+ column additions land in
+  // ensureScreenshotsColumns (mirroring the ensureSessionsColumns pattern).
+  db.exec(SCHEMA_SCREENSHOTS);
 
   return db;
 }
@@ -89,9 +95,9 @@ function ensureCvLibraryColumns(database: Database.Database): void {
  * actually lives and that row counts look reasonable after a restart.
  *
  * Background: the previous getDb() anchored the DB path to process.cwd(),
- * which silently shifted the resolved location when the user ran `pnpm dev`
- * from a different directory — e.g. a session created from `<repo-root>/data/`
- * became invisible from `apps/cloud-api/data/`. The PROJECT_ROOT anchor in
+ * which silently shifted the resolved location when the user ran pnpm dev
+ * from a different directory — e.g. a session created from <repo-root>/data/
+ * became invisible from apps/cloud-api/data/. The PROJECT_ROOT anchor in
  * getDb() fixes that, but operators still need a way to see the absolute path
  * so they can confirm "yes, the same DB file is being read across restarts"
  * or "no, this is a fresh DB".
@@ -101,8 +107,8 @@ function ensureCvLibraryColumns(database: Database.Database): void {
 export function logDbHealth(): void {
   if (!db) return;
   const liveDb = db;
-  // better-sqlite3 exposes the path passed to the constructor as `db.name`.
-  // path.resolve() normalizes separators and any '..' segments so the log
+  // better-sqlite3 exposes the path passed to the constructor as db.name.
+  // path.resolve() normalizes separators and any .. segments so the log
   // line is canonical across Windows and POSIX shells.
   const dbPath = liveDb.name;
   console.log(`[DB Health] path=${path.resolve(dbPath)}`);

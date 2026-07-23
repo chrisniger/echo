@@ -85,6 +85,31 @@ export interface ScreenshotTriggerEvent {
   sessionId?: string;
 }
 
+/**
+ * Phase 24 — server-initiated broadcast for a screenshot capture. The
+ * desktop POSTs to `/api/screenshots`, the cloud-api persists the row, and
+ * fans the SAME payload out to both the `session:<id>` room (other desktop
+ * instances on the same session) and the `user:<id>` room (Flutter
+ * companion, web portal). Companion reconnects then call
+ * `GET /api/sessions/:id/screenshots` to merge any missed events on the
+ * reconnect edge.
+ *
+ * The payload shape mirrors `Screenshot` from `@echo-gpt/shared-types`
+ * but with `dataUrl` (camelCase) → `dataUrl` (snake_case) AFTER
+ * `getWsGateway().broadcastSessionEvent` JSON-serializes it. WS clients
+ * see the camelCase form — they consume via `Screenshot` interface.
+ */
+export interface ScreenshotCreateEvent {
+  id: string;
+  sessionId: string;
+  takenAt: string;
+  mime: string;
+  width: number;
+  height: number;
+  cropBoxJson: string | null;
+  dataUrl: string;
+}
+
 export type WsEventPayload =
   | { type: 'transcript.update'; data: TranscriptUpdate }
   | { type: 'ai.response'; data: AiResponseEvent }
@@ -95,6 +120,7 @@ export type WsEventPayload =
   | { type: 'session.end'; data: SessionEvent }
   | { type: 'session.updated'; data: SessionUpdatedEvent }
   | { type: 'screenshot.trigger'; data: ScreenshotTriggerEvent }
+  | { type: 'screenshot.create'; data: ScreenshotCreateEvent }
   | { type: 'upload.complete'; data: UploadComplete }
   | { type: 'device.connected'; data: DeviceEvent }
   | { type: 'device.disconnected'; data: DeviceEvent }

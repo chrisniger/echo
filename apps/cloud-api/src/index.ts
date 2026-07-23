@@ -19,6 +19,7 @@ import { createPushRouter } from './routes/push.js';
 import { createSyncRouter } from './routes/sync.js';
 import { createBillingRouter } from './routes/billing.js';
 import sessionRoutes from './routes/sessions.js';
+import screenshotsRoutes from './routes/screenshots.js';
 import { createCvRouter } from './routes/cv.js';
 import { getDb, logDbHealth } from './db/index.js';
 import { HttpError } from './lib/errors.js';
@@ -32,7 +33,7 @@ const app = express();
 
 app.use(helmet() as any);
 app.use(cors({ origin: config.CORS_ORIGIN }) as any);
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/admin/users', userRoutes);
@@ -45,6 +46,7 @@ app.use('/api', pairingRoutes);
 app.use('/api', createPushRouter());
 app.use('/api', createSyncRouter());
 app.use('/api', sessionRoutes);
+app.use('/api', screenshotsRoutes);
 app.use('/api', createCvRouter());
 app.use('/api', createBillingRouter());
 

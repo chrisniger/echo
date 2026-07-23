@@ -48,7 +48,7 @@ export const SESSION_TYPES: readonly SessionType[] = [
 export const SESSION_TYPE_PROMPTS: Record<SessionType, string> = {
   Interview:
     'You are Echo conducting a job interview in real time. The user is the candidate. ' +
-    'Listen carefully to each interviewer question, then answer on the candidate\'s behalf using their CV ' +
+    "Listen carefully to each interviewer question, then answer on the candidate's behalf using their CV " +
     'and any context they supplied. Match the formality of the interviewer. ' +
     'Stay first-person, specific, and concise. Never volunteer score-based judgments.',
   Meeting:
@@ -66,11 +66,11 @@ export const SESSION_TYPE_PROMPTS: Record<SessionType, string> = {
   Brainstorming:
     'You are Echo as a creative brainstorm partner. The user is generating ideas. ' +
     'Produce 4-6 distinct, non-obvious ideas per prompt, each with a one-sentence rationale. ' +
-    'Avoid generic advice. Build on prior ideas in the session and don\'t repeat them.',
+    "Avoid generic advice. Build on prior ideas in the session and don't repeat them.",
   'Sales Call':
     'You are Echo as a real-time sales co-pilot. The user is a sales rep on a call. ' +
     'When asked, surface discovery questions, objection responses, competitive differentiators, and next steps. ' +
-    'Match the prospect\'s tone. Stay compliant and avoid making promises.',
+    "Match the prospect's tone. Stay compliant and avoid making promises.",
   'Customer Support':
     'You are Echo assisting a support agent in real time. The user is handling a customer ticket. ' +
     'Surface troubleshooting steps, KB articles, empathy statements, and escalation criteria as prompted. ' +
@@ -80,7 +80,7 @@ export const SESSION_TYPE_PROMPTS: Record<SessionType, string> = {
     'Explain concepts progressively from simple to complex, use concrete examples, ' +
     'and end each answer with a one-line recap or a single follow-up question when appropriate.',
   General:
-    'You are Echo, the user\'s AI copilot for live conversations. The session is uncategorised. ' +
+    "You are Echo, the user's AI copilot for live conversations. The session is uncategorised. " +
     'Adapt to whatever the user is doing: interview, meeting, technical discussion, casual chat, or note-taking. ' +
     'Stay helpful, concise, and grounded in any context the user supplied.',
 };
@@ -208,4 +208,55 @@ export interface SessionDocument {
   mimeType: string;
   fileSize: number;
   createdAt: string;
+}
+
+/**
+ * Phase 24 — every supported screenshot MIME type. Closed set so a single
+ * edit here forces every consumer (desktop downscaler, cloud-api Zod
+ * validation in `routes/screenshots.ts`, image gallery renderers on the
+ * Companion + Web Portal) to acknowledge the change.
+ *
+ * Currently only `image/png` (Phase 6 Rust `image.save` path) and
+ * `image/jpeg` are emitted; Phase 4.5's downscaler already encodes JPEG
+ * for the `auto` / `low` vision-detail rows in shared-config. A future
+ * WebP row would land here.
+ */
+export const SCREENSHOT_MIME_TYPES = ['image/png', 'image/jpeg'] as const;
+export type ScreenshotMime = (typeof SCREENSHOT_MIME_TYPES)[number];
+
+/**
+ * Phase 24 — persisted screenshot, the cloud-api-side twin of the desktop
+ * `ScreenshotResult` interface. Stored in the `screenshots` table (FK CASCADE
+ * to `sessions.id`) and forwarded verbatim to paired devices via the WS
+ * gateway's `screenshot.create` event.
+ *
+ * The desktop emits the `data:image/png;base64,…` payload directly so the
+ * payload arrives at Companion + Web Portal without any filesystem
+ * round-trip (avoids the Tauri cross-platform asset-scope dance that
+ * caught us out in Phase 6). Backwards-compat: low with no crop send
+ * `cropBoxJson: null`.
+ *
+ * Storage policy (Phase 24 §G): storing the full base64 payload as TEXT.
+ * For a downscaled ~150 KB capture this is ~200 KB of TEXT inside SQLite
+ * which SQLite handles without complaint; a future phase may move to a
+ * signed-URL bucket if cross-user storage weight grows past the
+ * 500 MB corpus boundary (see handoff.md Open Questions deferred).
+ */
+export interface Screenshot {
+  id: string;
+  sessionId: string;
+  /** Captured-at timestamp from the desktop client (ISO8601 UTC string). */
+  takenAt: string;
+  mime: ScreenshotMime;
+  width: number;
+  height: number;
+  /**
+   * Optional selection rect from ScreenshotCapture's Phase 4.5 crop path.
+   * Serialised as a JSON string (`{"x","y","width","height"}`) for
+   * forward-compat — future consumers can add fields (rotation, blur
+   * mask, etc.) without breaking existing rows.
+   */
+  cropBoxJson: string | null;
+  /** `data:<mime>;base64,<...>` payload — fed directly into `<img src>`. */
+  dataUrl: string;
 }

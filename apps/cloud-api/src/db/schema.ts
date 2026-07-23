@@ -253,3 +253,66 @@ CREATE TABLE IF NOT EXISTS session_embeddings (
   created_at TEXT NOT NULL
 );
 `;
+
+/**
+ * Phase 24 — screenshot persistence, kept as a SEPARATE constant so it
+ * never gets concatenated into the giant existing "schema" template
+ * literal. Two engineering reasons:
+ *
+ *  1. Parser stability. Keeping the screenshots schema in a discrete
+ *     short string dodges the "extremely long multi-line template body"
+ *     surface area entirely. The combined document was tripping an
+ *     esbuild internal parse-path issue for tooling that walks the
+ *     literal body.
+ *
+ *  2. Future-proof ALTER safety. Mirrors the ensureSessionsColumns
+ *     pattern in db/index.ts — future Phase 25+ column additions land
+ *     as ALTER TABLE migration in ensureScreenshotsColumns, not as
+ *     edits to this constant. Cloud-api getDb() runs both constant
+ *     DDL blocks at startup, then any forward migrations on top.
+ *
+ * SQL comments below intentionally contain NO inner backtick
+ * characters. Backticks inside a JS template-literal body terminate
+ * the string at the first unescaped one; the previous "fix" attempt
+ * that wrapped identifiers in backticks for "code formatting" caused
+ * esbuild to parse the rest of the SQL as raw JS, hence the cascade
+ * of TS1005 parse errors. SQLite is happy with comments that name
+ * columns in plain text.
+ */
+export const SCHEMA_SCREENSHOTS = `
+CREATE TABLE IF NOT EXISTS screenshots (
+  id TEXT PRIMARY KEY,
+  -- FK CASCADE so deleting a session sweeps its screenshots transactionally
+  -- without leaving orphan rows behind. Sessions are the only owner.
+  session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  -- ISO8601 UTC string from the desktop client (the take_screenshot Rust
+  -- command emits local-time ISO; the cloud-api accepts whatever the
+  -- desktop sent). The DB-side created_at is independent so server-side
+  -- enqueue order is anchored for sorting.
+  taken_at TEXT NOT NULL,
+  -- Bounded to the SCREENSHOT_MIME_TYPES closed union from
+  -- @echo-gpt/shared-types — see that package's vitest for the
+  -- closed-membership contract. cloud-api binds the value via z.enum.
+  mime TEXT NOT NULL,
+  width INTEGER NOT NULL,
+  height INTEGER NOT NULL,
+  -- Optional Phase 4.5 crop rect serialized as JSON with fields
+  -- x, y, width, height (forward-compat — future consumers can add
+  -- rotation, blur mask, etc. without breaking existing rows).
+  crop_box_json TEXT,
+  -- Phase 6 data URL payload. Storing the full base64 string keeps
+  -- the cloud API self-contained (no separate blob store, no signed
+  -- URLs, no asset-protocol scope on the receiving end). See handoff
+  -- Phase 24 deferred questions for the 500 MB corpus break-glass.
+  data_url TEXT NOT NULL,
+  -- SQLite CURRENT_TIMESTAMP gives a server-monotonic UTC timestamp;
+  -- we keep it independent of taken_at so the desktop can be clock-
+  -- skewed without breaking server-side ordering.
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Hot-path index: GET /api/sessions/:id/screenshots always filters by
+-- session_id; this index keeps that query's cost near O(log N) even
+-- when the screenshots table grows past 10k rows per session.
+CREATE INDEX IF NOT EXISTS idx_screenshots_session_id ON screenshots(session_id);
+`;

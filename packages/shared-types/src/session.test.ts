@@ -179,3 +179,59 @@ describe('z.enum(SessionType) — closed union API binding', () => {
     expect(wrapper.safeParse({ sessionType: 'Foo' }).success).toBe(false);
   });
 });
+
+/**
+ * Phase 24 — closed union for Screenshot MIME types. Mirrors the
+ * SESSION_TYPES contract test block above. The cloud-api
+ * POST /api/screenshots handler binds to this exact z.enum schema,
+ * so a contributor who adds `image/webp` here (or any future format)
+ * will have to update the cloud-api route + vitest at the same time
+ * — both failure modes are caught by the tests below.
+ */
+import { SCREENSHOT_MIME_TYPES } from './session.js';
+const screenshotMimeSchema = z.enum(
+  SCREENSHOT_MIME_TYPES as readonly [
+    (typeof SCREENSHOT_MIME_TYPES)[number],
+    ...(typeof SCREENSHOT_MIME_TYPES)[number][],
+  ],
+);
+
+describe('SCREENSHOT_MIME_TYPES — closed mime set for capture payloads', () => {
+  it('contains exactly the two mimes the Phase 6 Rust downscaler emits', () => {
+    expect(SCREENSHOT_MIME_TYPES).toEqual(['image/png', 'image/jpeg']);
+  });
+
+  it('is exported as a readonly tuple at runtime (identity pin)', () => {
+    // Compile-time readonly; runtime value MUST remain an Array — if a
+    // future contributor swaps this for a Set / Map, every consumer that
+    // does `.map(...)` would break immediately and these failures point
+    // them at the right file.
+    expect(Array.isArray(SCREENSHOT_MIME_TYPES)).toBe(true);
+    expect(SCREENSHOT_MIME_TYPES.length).toBe(2);
+  });
+
+  it('rejects an obvious non-PNG/JPEG string (no implicit membership)', () => {
+    expect(SCREENSHOT_MIME_TYPES.includes('image/webp' as never)).toBe(false);
+    expect(SCREENSHOT_MIME_TYPES.includes('image/svg+xml' as never)).toBe(false);
+    expect(SCREENSHOT_MIME_TYPES.includes('' as never)).toBe(false);
+  });
+});
+
+describe('z.enum(SCREENSHOT_MIME_TYPES) — closed union API binding', () => {
+  it('accepts every declared mime', () => {
+    for (const m of SCREENSHOT_MIME_TYPES) {
+      const result = screenshotMimeSchema.safeParse(m);
+      expect(result.success, `expected ${m} to be accepted`).toBe(true);
+      if (result.success) expect(result.data).toBe(m);
+    }
+  });
+
+  it('rejects an unknown mime string', () => {
+    expect(screenshotMimeSchema.safeParse('image/webp').success).toBe(false);
+  });
+
+  it('rejects case variants (strict equality)', () => {
+    expect(screenshotMimeSchema.safeParse('IMAGE/PNG').success).toBe(false);
+    expect(screenshotMimeSchema.safeParse('image/JPG').success).toBe(false);
+  });
+});
