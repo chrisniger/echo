@@ -172,3 +172,99 @@ export function isVisionCapable(model: AiModel): boolean {
 export function getVisionDetail(model: AiModel): VisionDetail {
   return MODEL_CAPABILITIES[model].visionDetail;
 }
+
+/**
+ * UI display metadata, not domain logic.
+ *
+ * The every-row `as const satisfies Record<AiModel, string>` constraint
+ * is the compile-time gate that catches union drift: adding a new
+ * `AiModel` union member forces an update here (test name:
+ * "supplies exactly one label per AiModel"). Phase 4 centralised these
+ * labels so NewSession.tsx and Settings.tsx no longer carry duplicated
+ * 22-entry `models = [{value,label}…]` arrays. Cloud-api and web-portal
+ * will reuse the same map when they adopt the dropdown.
+ */
+export const MODEL_LABELS = {
+  'gpt-4o': 'GPT-4o',
+  'gpt-4o-mini': 'GPT-4o Mini',
+  'gpt-4-turbo': 'GPT-4 Turbo',
+  'gpt-3.5-turbo': 'GPT-3.5 Turbo',
+  'claude-4-opus': 'Claude 4 Opus',
+  'claude-4-sonnet': 'Claude 4 Sonnet',
+  'claude-3.5-sonnet': 'Claude 3.5 Sonnet',
+  'claude-3-opus': 'Claude 3 Opus',
+  'claude-3-sonnet': 'Claude 3 Sonnet',
+  'claude-3-haiku': 'Claude 3 Haiku',
+  'gemini-2.0-flash': 'Gemini 2.0 Flash',
+  'gemini-2.0-pro': 'Gemini 2.0 Pro',
+  'gemini-1.5-pro': 'Gemini 1.5 Pro',
+  'gemini-1.5-flash': 'Gemini 1.5 Flash',
+  'deepseek-chat': 'DeepSeek Chat',
+  'deepseek-coder': 'DeepSeek Coder',
+  'deepseek-reasoner': 'DeepSeek Reasoner',
+  'qwen-vl-max': 'Qwen VL Max',
+  'qwen-vl-plus': 'Qwen VL Plus',
+  'qwen2.5-vl-72b-instruct': 'Qwen2.5 VL 72B',
+  'qwen2.5-vl-7b-instruct': 'Qwen2.5 VL 7B',
+  'qwen3-vl-235b-a22b-instruct': 'Qwen3 VL 235B',
+  'qwen3-vl-plus': 'Qwen3 VL Plus',
+  'openrouter/auto': 'OpenRouter Auto',
+  'ollama/llama3': 'Ollama Llama 3',
+  'ollama/mixtral': 'Ollama Mixtral',
+  'ollama/qwen2.5': 'Ollama Qwen 2.5',
+  'ollama/codellama': 'Ollama Code Llama',
+} as const satisfies Record<AiModel, string>;
+
+/**
+ * Vision-capable model used when the user requested a non-vision model
+ * but the request body contains an image. Centralised here so a single
+ * edit swaps the desktop's entire fallback behaviour — no need to touch
+ * `chatService.ts` when the preferred cost / latency profile changes.
+ *
+ * Defaults to `'gpt-4o-mini'` (matches the pre-Phase-4 hard-coded
+ * fallback). The asserted lock-test guarantees this id stays a member of
+ * `VISION_CAPABLE_MODELS`; replacing the default is a single-line edit.
+ */
+export const PREFERRED_VISION_FALLBACK: AiModel = 'gpt-4o-mini';
+
+/**
+ * Human-readable provider labels. Exported so future consumers
+ * (cloud-api subscription tier UI, web-portal admin page) can render a
+ * provider name without traversing `getProviderModelGroups()`. Title
+ * Case + brand tweaks.
+ */
+export const PROVIDER_LABELS: Record<AiProvider, string> = {
+  openai: 'OpenAI',
+  anthropic: 'Anthropic',
+  gemini: 'Google Gemini',
+  deepseek: 'DeepSeek',
+  dashscope: 'DashScope (Qwen VL)',
+  openrouter: 'OpenRouter',
+  ollama: 'Ollama (Local)',
+};
+
+/**
+ * Build a visually grouped list of models per provider, in `PROVIDER_PRIORITY`
+ * order, for the desktop's `<SelectGroup>` dropdowns. Each row carries the
+ * vision flag so the UI can badge it without a second registry lookup.
+ *
+ * Used by both `pages/NewSession.tsx` and `pages/Settings.tsx` so the two
+ * dropdowns stay in lockstep automatically.
+ */
+export interface ProviderModelGroup {
+  provider: AiProvider;
+  label: string;
+  models: Array<{ value: AiModel; label: string; vision: boolean }>;
+}
+
+export function getProviderModelGroups(): ProviderModelGroup[] {
+  return PROVIDER_PRIORITY.map((provider) => ({
+    provider,
+    label: PROVIDER_LABELS[provider],
+    models: PROVIDER_DEFAULTS[provider].models.map((model) => ({
+      value: model,
+      label: MODEL_LABELS[model],
+      vision: isVisionCapable(model),
+    })),
+  }));
+}

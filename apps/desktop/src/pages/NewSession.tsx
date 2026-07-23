@@ -1,8 +1,9 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Upload, FileText, X, Loader2, AlertTriangle, Briefcase } from 'lucide-react';
+import { Upload, FileText, X, Loader2, AlertTriangle, Briefcase, Eye } from 'lucide-react';
 import type { AudioSource, ResponseStyle, Language, SessionType } from '@echo-gpt/shared-types';
 import { SESSION_TYPES } from '@echo-gpt/shared-types';
+import { getProviderModelGroups } from '@echo-gpt/shared-config';
 import { useSettingsStore } from '../stores/settings';
 import { useSessionStore } from '../stores/session';
 import { useCvStore } from '../stores/cv';
@@ -16,34 +17,20 @@ import {
   SelectTrigger,
   SelectValue,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
 } from '../components/ui/select';
 import { Card, CardContent } from '../components/ui/card';
 
-const aiModels = [
-  { value: 'gpt-4o', label: 'GPT-4o' },
-  { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
-  { value: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
-  { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
-  { value: 'claude-4-sonnet', label: 'Claude 4 Sonnet' },
-  { value: 'claude-4-opus', label: 'Claude 4 Opus' },
-  { value: 'claude-3.5-sonnet', label: 'Claude 3.5 Sonnet' },
-  { value: 'claude-3-opus', label: 'Claude 3 Opus' },
-  { value: 'claude-3-sonnet', label: 'Claude 3 Sonnet' },
-  { value: 'claude-3-haiku', label: 'Claude 3 Haiku' },
-  { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
-  { value: 'gemini-2.0-pro', label: 'Gemini 2.0 Pro' },
-  { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
-  { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
-  { value: 'deepseek-chat', label: 'DeepSeek Chat' },
-  { value: 'deepseek-coder', label: 'DeepSeek Coder' },
-  { value: 'deepseek-reasoner', label: 'DeepSeek Reasoner' },
-  { value: 'openrouter/auto', label: 'OpenRouter Auto' },
-  { value: 'ollama/llama3', label: 'Ollama Llama 3' },
-  { value: 'ollama/mixtral', label: 'Ollama Mixtral' },
-  { value: 'ollama/qwen2.5', label: 'Ollama Qwen 2.5' },
-  { value: 'ollama/codellama', label: 'Ollama Code Llama' },
-];
+/**
+ * Phase 4: the dropdown options come from the shared registry (`getProviderModelGroups`)
+ * so the Phase 3 DashScope / Qwen-VL rows appear automatically and any future
+ * union addition ripples into both this page and Settings without a parallel edit.
+ * Every line below the `<SelectValue />` is now data-driven; we keep no local
+ * model list. Cached at module load — the registry is a static const tree.
+ */
+const aiModelGroups = getProviderModelGroups();
 
 const responseStyles: { value: ResponseStyle; label: string }[] = [
   { value: 'concise', label: 'Concise' },
@@ -520,10 +507,23 @@ export default function NewSession() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {aiModels.map((m) => (
-                  <SelectItem key={m.value} value={m.value}>
-                    {m.label}
-                  </SelectItem>
+                {aiModelGroups.map((group) => (
+                  <SelectGroup key={group.provider}>
+                    <SelectLabel>{group.label}</SelectLabel>
+                    {group.models.map((m) => (
+                      <SelectItem key={m.value} value={m.value}>
+                        <span className="flex w-full items-center justify-between gap-2">
+                          <span>{m.label}</span>
+                          {m.vision && (
+                            <Eye
+                              className="h-3 w-3 text-indigo-400 dark:text-indigo-300"
+                              aria-label="Vision-capable"
+                            />
+                          )}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 ))}
               </SelectContent>
             </Select>

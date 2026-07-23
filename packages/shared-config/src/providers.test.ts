@@ -3,7 +3,13 @@ import type { AiModel, VisionDetail } from '@echo-gpt/shared-types';
 import {
   ALL_AI_MODELS,
   MODEL_CAPABILITIES,
+  MODEL_LABELS,
+  PREFERRED_VISION_FALLBACK,
+  PROVIDER_DEFAULTS,
+  PROVIDER_LABELS,
+  PROVIDER_PRIORITY,
   VISION_CAPABLE_MODELS,
+  getProviderModelGroups,
   getVisionDetail,
   isVisionCapable,
 } from './providers.js';
@@ -142,5 +148,112 @@ describe('MODEL_CAPABILITIES coverage', () => {
     expect(MODEL_CAPABILITIES['qwen-vl-plus'].visionDetail).toBe('auto');
     expect(MODEL_CAPABILITIES['qwen2.5-vl-7b-instruct'].visionDetail).toBe('auto');
     expect(MODEL_CAPABILITIES['qwen3-vl-plus'].visionDetail).toBe('auto');
+  });
+});
+
+describe('MODEL_LABELS UI metadata', () => {
+  it('supplies exactly one non-empty label per AiModel', () => {
+    // Belt-and-braces against a typo or empty label during Phase 4
+    // when the registry expanded to 28 rows.
+    expect(Object.keys(MODEL_LABELS).length).toBe(ALL_AI_MODELS.length);
+    for (const model of ALL_AI_MODELS) {
+      const label = MODEL_LABELS[model];
+      expect(typeof label).toBe('string');
+      expect(label.length, `empty label for ${model}`).toBeGreaterThan(0);
+    }
+  });
+
+  it('does not advertise a label for non-existent models', () => {
+    // Guards against future ALL_AI_MODELS bloat — any extra label key
+    // would be silently rendered as a dropdown entry that the gateway
+    // would 400 on.
+    for (const key of Object.keys(MODEL_LABELS) as AiModel[]) {
+      expect(ALL_AI_MODELS, `orphan label ${key}`).toContain(key);
+    }
+  });
+});
+
+describe('PREFERRED_VISION_FALLBACK', () => {
+  it('is a known vision-capable model', () => {
+    // Without this guard the desktop's fallback would select a row the
+    // gateway would silently stringify. Belt-and-braces against anyone
+    // editing the constant without updating the registry.
+    expect(VISION_CAPABLE_MODELS.has(PREFERRED_VISION_FALLBACK)).toBe(true);
+  });
+});
+
+describe('getProviderModelGroups()', () => {
+  it('groups exactly the models in ALL_AI_MODELS (no orphans, no duplicates)', () => {
+    const groups = getProviderModelGroups();
+    const groupedIds = groups.flatMap((g) => g.models.map((m) => m.value));
+    expect(groupedIds.length).toBe(ALL_AI_MODELS.length);
+    // set equality (order-insensitive) catches both missing and duplicate entries
+    expect(new Set(groupedIds)).toEqual(new Set(ALL_AI_MODELS));
+  });
+
+  it('preserves PROVIDER_PRIORITY for the group order', () => {
+    const groups = getProviderModelGroups();
+    expect(groups.map((g) => g.provider)).toEqual(PROVIDER_PRIORITY);
+  });
+
+  it('supplies a non-empty human-readable label per group', () => {
+    for (const g of getProviderModelGroups()) {
+      expect(g.label.length, `empty label for provider ${g.provider}`).toBeGreaterThan(0);
+    }
+  });
+
+  it('matches PROVIDER_DEFAULTS for each provider group', () => {
+    // Belt-and-braces: if PROVIDER_DEFAULTS gains or loses a model, the
+    // group output MUST reflect it; otherwise the dropdown silently drops
+    // the user-chosen default on next render.
+    const groups = getProviderModelGroups();
+    for (const g of groups) {
+      expect(g.models.map((m) => m.value)).toEqual(PROVIDER_DEFAULTS[g.provider].models);
+    }
+  });
+});
+
+describe('PROVIDER_LABELS export', () => {
+  it('supplies a non-empty human label for every AiProvider', () => {
+    // Future consumers (cloud-api, web-portal) need to look up a label
+    // without traversing getProviderModelGroups(). Mirror the gate we
+    // apply to MODEL_LABELS so the same drift detection holds.
+    const providerKeys = Object.keys(PROVIDER_DEFAULTS) as Array<keyof typeof PROVIDER_DEFAULTS>;
+    for (const provider of providerKeys) {
+      expect(typeof PROVIDER_LABELS[provider]).toBe('string');
+      expect(PROVIDER_LABELS[provider].length).toBeGreaterThan(0);
+    }
+  });
+
+  it('explicitly identifies DashScope as the Qwen-VL provider so end-users see it', () => {
+    // Phase 3 added 6 Qwen-VL models behind the dashscope provider; the
+    // dropdown group label must read "DashScope (Qwen VL)" rather than
+    // just "Dashscope" so the visual grouping matches the user's mental
+    // model. Locked to catch a future rename that silently demotes
+    // provider brand awareness.
+    expect(PROVIDER_LABELS.dashscope).toMatch(/Qwen/);
+  });
+});
+
+describe('Phase 3 reach into Phase 4 dropdown wiring', () => {
+  it('advertises every Qwen-VL model as vision-capable in the dropdown', () => {
+    // Locks the eye-icon badge so a future regression in
+    // MODEL_CAPABILITIES (e.g. flipping qwen-vl-plus to vision: false)
+    // surfaces here instead of silently dropping the badge in the UI.
+    const groups = getProviderModelGroups();
+    const dashscopeGroup = groups.find((g) => g.provider === 'dashscope');
+    expect(dashscopeGroup).toBeDefined();
+    for (const m of dashscopeGroup!.models) {
+      expect(m.vision, `${m.value} should keep vision badge`).toBe(true);
+    }
+  });
+
+  it('keeps PREFERRED_VISION_FALLBACK inside the openai dropdown group', () => {
+    // Sanity check that PREFERRED_VISION_FALLBACK is selectable from
+    // Settings' Default Model dropdown (it's an OpenAI model, so it
+    // lives in the openai group).
+    const groups = getProviderModelGroups();
+    const openaiGroup = groups.find((g) => g.provider === 'openai');
+    expect(openaiGroup!.models.map((m) => m.value)).toContain(PREFERRED_VISION_FALLBACK);
   });
 });

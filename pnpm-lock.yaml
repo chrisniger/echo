@@ -184,6 +184,9 @@ importers:
 
   apps/desktop:
     dependencies:
+      '@echo-gpt/shared-config':
+        specifier: workspace:*
+        version: link:../../packages/shared-config
       '@echo-gpt/shared-types':
         specifier: workspace:*
         version: link:../../packages/shared-types

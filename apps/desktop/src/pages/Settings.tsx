@@ -20,6 +20,10 @@ import {
   Layers,
 } from 'lucide-react';
 import type { UserSettings } from '@echo-gpt/shared-types';
+// Shared-config model roster for the Default Model dropdown (Phase 4):
+// data-driven so NewSession.tsx and Settings.tsx stay in lockstep, and the
+// Phase 3 DashScope / Qwen-VL rows appear here without a parallel edit.
+import { getProviderModelGroups } from '@echo-gpt/shared-config';
 import { useSettingsStore } from '../stores/settings';
 import { DEFAULT_QUESTION_TRIGGERS } from '../services/questionDetection';
 import {
@@ -41,7 +45,9 @@ import {
   SelectTrigger,
   SelectValue,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
 } from '../components/ui/select';
 import { DeviceManagement } from '../components/DeviceManagement';
 
@@ -54,30 +60,13 @@ const languages = [
   { value: 'ja', label: 'Japanese' },
 ];
 
-const models = [
-  { value: 'gpt-4o', label: 'GPT-4o' },
-  { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
-  { value: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
-  { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
-  { value: 'claude-4-sonnet', label: 'Claude 4 Sonnet' },
-  { value: 'claude-4-opus', label: 'Claude 4 Opus' },
-  { value: 'claude-3.5-sonnet', label: 'Claude 3.5 Sonnet' },
-  { value: 'claude-3-opus', label: 'Claude 3 Opus' },
-  { value: 'claude-3-sonnet', label: 'Claude 3 Sonnet' },
-  { value: 'claude-3-haiku', label: 'Claude 3 Haiku' },
-  { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
-  { value: 'gemini-2.0-pro', label: 'Gemini 2.0 Pro' },
-  { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
-  { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
-  { value: 'deepseek-chat', label: 'DeepSeek Chat' },
-  { value: 'deepseek-coder', label: 'DeepSeek Coder' },
-  { value: 'deepseek-reasoner', label: 'DeepSeek Reasoner' },
-  { value: 'openrouter/auto', label: 'OpenRouter Auto' },
-  { value: 'ollama/llama3', label: 'Ollama Llama 3' },
-  { value: 'ollama/mixtral', label: 'Ollama Mixtral' },
-  { value: 'ollama/qwen2.5', label: 'Ollama Qwen 2.5' },
-  { value: 'ollama/codellama', label: 'Ollama Code Llama' },
-];
+/**
+ * Phase 4: the Default Model dropdown is data-driven from the shared
+ * registry so the Phase 3 DashScope / Qwen-VL rows appear automatically
+ * and any future union addition ripples into both NewSession and Settings
+ * without a parallel edit.
+ */
+const aiModelGroups = getProviderModelGroups();
 
 const responseStyles = [
   { value: 'concise', label: 'Concise' },
@@ -204,10 +193,23 @@ export default function Settings() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {models.map((m) => (
-                <SelectItem key={m.value} value={m.value}>
-                  {m.label}
-                </SelectItem>
+              {aiModelGroups.map((group) => (
+                <SelectGroup key={group.provider}>
+                  <SelectLabel>{group.label}</SelectLabel>
+                  {group.models.map((m) => (
+                    <SelectItem key={m.value} value={m.value}>
+                      <span className="flex w-full items-center justify-between gap-2">
+                        <span>{m.label}</span>
+                        {m.vision && (
+                          <Eye
+                            className="h-3 w-3 text-indigo-400 dark:text-indigo-300"
+                            aria-label="Vision-capable"
+                          />
+                        )}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
               ))}
             </SelectContent>
           </Select>
