@@ -1999,7 +1999,10 @@ d903b07 feat(vision): add shared vision registry, MAX_IMAGE_BYTES cap, and locke
 
 ## Phase 6 — Screenshot Display Bug Fix (main, after the feature → main merge)
 
-**Commit:** `9fc2308` on `origin/main` (sits on top of merge commit `cbc26fa`).
+**Commits:**
+
+- `5125933` — Phase 24.1 server-side foundation (cloud-api REST + WS broadcast + screenshots table + vitest infrastructure).
+- `ef2cb12` — Phase 6 Tauri asset:// display fix (replaces the earlier in-memory base64 IPC that silently truncated on multi-MB payloads — a 4K PNG easily exceeds Tauri 2's ~5 MB JSON IPC bridge limit).
 
 **Symptom:** captured PNG screenshots were invisible in the SessionDetail Capture tab. The Rust capture succeeded (file written under `~/Pictures/EchoGPT/screenshots/screenshot_<ts>.png`), React's `lastScreenshot` state populated, but the `<img src={`file://${lastScreenshot.path}`}>` was silently blocked: the Tauri v2 WebView's CSP lacks `file:` in img-src and the capability set doesn't grant `core:asset:` scope for `~/Pictures/EchoGPT/screenshots/` (outside the app dir cross-platform).
 
@@ -2020,14 +2023,22 @@ d903b07 feat(vision): add shared vision registry, MAX_IMAGE_BYTES cap, and locke
 
 **Validation:** cargo check (0 warnings), cargo build --lib (pass), desktop TypeScript typecheck (pass), 72/72 vitests stay green, desktop eslint clean on the 2 TS files.
 
-## Phase 24+ — Next up on `origin/main` (after Phase 6 lands)
+## Phase 24+ — Next up on `origin/main` (after Phase 6 ships)
 
 The Phase 23 roadmap section above stays accurate. Concretely:
 
-- **Phase 24 — Screenshot Persist + Broadcast.** Schema-first. Add a `screenshots` table to `apps/cloud-api/src/config.ts` DB init (columns: id, session_id, taken_at, mime, width, height, crop_box_json, data_url). Desktop POSTs the dataUrl to `/api/screenshots` (POST) on capture; the cloud-api persists the row + emits a `screenshot.create` event over the WS gateway to the user's paired devices. Companion + Web Portal render the thumbnail via `/api/screenshots/:id` with `Accept: image/png` + signed URL.
+- **Phase 24a — Desktop async POST.** Phase 24.1 (commit `5125933`) shipped the cloud-api backend with `/api/screenshots` POST + WS `screenshot.create` broadcast. The desktop `chatService` flow must now: after the Phase 4.5 downscaler runs in `handleAnalyze`, POST the downscaled JPEG as multipart to `/api/screenshots` (reference Phase 24.1's `postScreenshotSchema` for the closed-union mime + 10MB cap). On 201 success the WS broadcast hand-off is automatic. On 401/404/5xx surface a clear toast — do NOT proceed with the AI ask if `/api/screenshots` failed, since the Companion renderers rely on the broadcast.
+- **Phase 24b — Companion renderer.** Flutter `apps/companion` needs a `screenshot.create` WS subscriber that pushes a thumbnail card into the live transcript. Use the existing `WsClient` plumbing from `package:echo_gpt_client`.
+- **Phase 24c — Web Portal renderer.** `apps/web-portal/app/sessions/[id]/page.tsx` needs a screenshots tab fed by `/api/sessions/:id/screenshots` (returns chronological list, oldest first).
 - **Phase 25 — E2E Playwright.** Cover the capture → analyze → response round-trip with a stubbed vision model (see Phase 26).
 - **Phase 26 — Mock Vision Provider.** Stub provider rows in `packages/shared-config/src/providers.ts` (e.g. `mock:gpt-4o-vision`) that the gateway routes to a fixed canned response, so the test rig doesn't need OpenAI/Anthropic/Gemini keys.
 
 ## Updated Next Session Prompt
 
-Resume with **Phase 24 — Screenshot Persist + Broadcast**. Read `apps/cloud-api/src/config.ts` for DB initialization and migration pattern, `packages/shared-types/src/session.ts` for existing screenshot-shaped types, and `apps/ai-gateway/src/index.ts` + `apps/cloud-api/src/index.ts` for the WS gateway broadcast conventions. Schema-first design, then the cloud-api RPC, then the desktop broadcast hook, then the Companion + Web Portal renderers. Stop after schema + RPC for user review before runtime UX work.
+Resume with **Phase 24a — Desktop async POST** (call it 'Phase 24.2' since the server-side 24.1 has landed). Read:
+
+- `apps/cloud-api/src/routes/screenshots.ts` for the canonical POST contract + 400/404/500 error shapes.
+- `packages/shared-config/src/storage.ts` for `MAX_IMAGE_BYTES` and Phase 4.5's `downscaleCanvas` so the JS payload to `/api/screenshots` is already under the cap.
+- `apps/desktop/src/services/chatService.ts` for how the WS broadcast hooks off `askAssistant`'s success path — add a single `await syncScreenshotToCloud(sessionId, downscaledJpeg)` right before `await gatewayApi.post('/chat', ...)`.
+
+Stop after the desktop POST lands + the WS round-trip is observable via web portal's live transcript, before the Companion renderer.
