@@ -2,20 +2,19 @@ import { invoke } from '@tauri-apps/api/core';
 
 export interface ScreenshotResult {
   /** Absolute filesystem path the Rust backend wrote to
-   *  (`~/Pictures/EchoGPT/screenshots/screenshot_<ts>.png`). Kept so a
-   *  future surface can "Open in Finder / Explorer" via `shell.open()`. */
+   *  (`~/Pictures/EchoGPT/screenshots/screenshot_<ts>.png`). The
+   *  React surface renders via `convertFileSrc(path)` against the
+   *  `asset://` protocol so the WebView never has to round-trip a
+   *  multi-megabyte base64 payload — Tauri's IPC chokes on those
+   *  silently and the `<img>` silently breaks. */
   path: string;
   /**
-   * `data:image/png;base64,…` payload produced in-memory by the Rust
-   * `take_screenshot` command immediately after capture. The desktop
-   * WebView blocks arbitrary `file://` URLs (CSP lacks `file:` and the
-   * asset-protocol scope isn't configured for `~/Pictures/...`), so the
-   * `<img src={…}>` element must consume a data: URL instead. The
-   * downscaler (Phase 4.5) still gates the actual `/chat` payload under
-   * `MAX_IMAGE_BYTES` — this `data_url` is the source the downscaler
-   * reads from via `<img>.src` + `ctx.drawImage`.
+   * Currently the empty string. Reserved for a future Phase 25+ down-
+   * scaled preview so the clip-region UX can show a small JPEG data
+   * URL inline without an extra IPC roundtrip. Marked optional so
+   * callers branching on it for `src` don't pretend it's populated.
    */
-  dataUrl: string;
+  dataUrl?: string;
   width: number;
   height: number;
   timestamp: string;

@@ -8,6 +8,7 @@
     "shell:allow-open",
     "dialog:default",
     "fs:default",
+    "asset:default",
     "global-shortcut:default",
     {
       "identifier": "global-shortcut:allow-register",

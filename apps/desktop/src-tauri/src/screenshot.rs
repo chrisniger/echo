@@ -76,23 +76,19 @@ pub fn capture_screenshot() -> Result<ScreenshotResult, String> {
         .save(&filepath)
         .map_err(|e| format!("Failed to save screenshot to disk: {}", e))?;
 
-    // Re-read the just-written PNG so we can base64-encode it for the
-    // React side. This adds one extra disk roundtrip compared to the
-    // in-memory alternative (which is broken by the cross-crate
-    // `image` version mismatch noted above); for a single triggered
-    // screenshot the IO cost is negligible — the savings would only
-    // matter at capture-loop rates, which this command doesn't do.
-    let png_bytes = fs::read(&filepath)
-        .map_err(|e| format!("Failed to read saved screenshot: {}", e))?;
-
-    let data_url = format!(
-        "data:image/png;base64,{}",
-        STANDARD.encode(&png_bytes)
-    );
-
+    // Phase 6 — the full-resolution base64 payload is NOT returned
+    // through IPC. Tauri's JSON bridge chokes (read: silently truncates
+    // or stalls the WebView) on payloads >~5 MB, and a 4K PNG easily
+    // blows past that once base64-encoded. Instead, the screenshot file
+    // on disk is the source of truth, and React mounts it through the
+    // asset:// protocol via `convertFileSrc(path)` (see
+    // ScreenshotCapture.tsx). The `data_url` field is kept on the wire
+    // for forward compat but is currently the empty string; a future
+    // Phase 25+ can repurpose it for a downscaled preview PNG if the
+    // clip-region UX wants one without an extra roundtrip.
     Ok(ScreenshotResult {
         path: filepath.to_string_lossy().to_string(),
-        data_url,
+        data_url: String::new(),
         width: image.width(),
         height: image.height(),
         timestamp,

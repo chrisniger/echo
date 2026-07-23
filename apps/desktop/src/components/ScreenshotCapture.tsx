@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Camera, Loader2, AlertCircle, Check, X } from 'lucide-react';
+import { convertFileSrc } from '@tauri-apps/api/core';
 import type { AiModel } from '@echo-gpt/shared-types';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
@@ -27,6 +28,14 @@ export default function ScreenshotCapture({ sessionId }: ScreenshotCaptureProps)
   const [selection, setSelection] = useState<Rect | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [displayScale, setDisplayScale] = useState(1);
+  // Phase 6 race fix: track whether the <img> has actually decoded the
+  // asset:// URL. Without this guard, `handleAnalyze` was invoked a tick
+  // after `setLastScreenshot(result)` and `cropToCanvas`'s
+  // `ctx.drawImage(img, ...)` ran against an `<img>` whose
+  // `naturalWidth` was still 0 — silently producing a fully-black
+  // data URL. `onLoad` flips this to true; `handleAnalyze` short-
+  // circuits on false with a clear error toast.
+  const [imageLoaded, setImageLoaded] = useState(false);
 
   const currentSession = useSessionStore((state) => state.currentSession);
   const imageRef = useRef<HTMLImageElement | null>(null);
@@ -41,6 +50,7 @@ export default function ScreenshotCapture({ sessionId }: ScreenshotCaptureProps)
     try {
       const result = await screenshotService.captureScreenshot();
       setLastScreenshot(result);
+      setImageLoaded(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to capture screenshot');
     } finally {
@@ -282,6 +292,10 @@ export default function ScreenshotCapture({ sessionId }: ScreenshotCaptureProps)
       setError('No active session');
       return;
     }
+    if (!imageLoaded) {
+      setError('Screenshot is still loading. Try again in a moment.');
+      return;
+    }
     // Phase 4.5: route the canvas through the registry-driven
     // downscaler so the data URL never exceeds MAX_IMAGE_BYTES.
     const imageBase64 = await buildDownscaledDataUrl();
@@ -382,19 +396,33 @@ export default function ScreenshotCapture({ sessionId }: ScreenshotCaptureProps)
               onKeyDown={handleKeyDown}
             >
               {/*
-                Phase 6: the WebView blocks arbitrary `file://` URLs
-                (CSP lacks `file:` and the asset-protocol scope isn't
-                configured for `~/Pictures/EchoGPT/...`). Consume the
-                in-memory base64 `dataUrl` produced by the Rust
-                `take_screenshot` command instead so the image renders
-                without asking the user to enable an asset scope.
-                `path` is preserved on ScreenshotResult so a future
+                Phase 6 display fix: serve the just-saved PNG through
+                the Rust `asset://` protocol instead of round-tripping
+                a multi-megabyte base64 payload back through the IPC
+                bridge. The previous attempt shipped a `data:image/png;
+                base64,…` URL produced in-memory, but Tauri's JSON IPC
+                silently truncates / stalls WebView2 on payloads >~5 MB
+                — a 4K PNG easily exceeds that once base64-encoded, so
+                the `<img src>` rendered broken. We now keep the file
+                on disk under `~/Pictures/EchoGPT/screenshots/` (the
+                Rust side already writes it) and let Tauri's asset
+                protocol serve it via `convertFileSrc(path)`. Scope is
+                declared in tauri.conf.json → `assetProtocol.scope`,
+                CSP `img-src asset:` already permits it. `path` is
+                still preserved on ScreenshotResult so a future
                 "Open in Finder / Explorer" button can shell.open() it.
               */}
               <img
                 ref={imageRef}
-                src={lastScreenshot.dataUrl}
+                src={convertFileSrc(lastScreenshot.path)}
                 alt="Screenshot"
+                onLoad={() => setImageLoaded(true)}
+                onError={() => {
+                  setImageLoaded(false);
+                  setError(
+                    'Failed to render the saved screenshot. Check that Tauri has the asset:// scope configured for this path.',
+                  );
+                }}
                 className="max-w-full h-auto rounded-md border border-zinc-300 dark:border-zinc-700"
                 draggable={false}
               />
