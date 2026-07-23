@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { AiModel, VisionDetail } from '@echo-gpt/shared-types';
 import {
   ALL_AI_MODELS,
+  DOWNSCALER_LIMITS,
+  ENCODING_STRATEGIES,
   MODEL_CAPABILITIES,
   MODEL_LABELS,
   PREFERRED_VISION_FALLBACK,
@@ -9,6 +11,7 @@ import {
   PROVIDER_LABELS,
   PROVIDER_PRIORITY,
   VISION_CAPABLE_MODELS,
+  encodeStrategyForDetail,
   getProviderModelGroups,
   getVisionDetail,
   isVisionCapable,
@@ -255,5 +258,86 @@ describe('Phase 3 reach into Phase 4 dropdown wiring', () => {
     const groups = getProviderModelGroups();
     const openaiGroup = groups.find((g) => g.provider === 'openai');
     expect(openaiGroup!.models.map((m) => m.value)).toContain(PREFERRED_VISION_FALLBACK);
+  });
+});
+
+describe('ENCODING_STRATEGIES (Phase 4.5 downscaler matrix)', () => {
+  const VALID_DETAILS: readonly VisionDetail[] = ['low', 'high', 'auto'];
+  const VALID_MIMES = ['image/png', 'image/jpeg'] as const;
+
+  it('supplies exactly one strategy per VisionDetail', () => {
+    // Belt-and-braces against adding a new VisionDetail value (e.g.
+    // 'medium') without updating the matrix.
+    for (const detail of VALID_DETAILS) {
+      expect(ENCODING_STRATEGIES[detail], `missing ${detail}`).toBeDefined();
+      expect(VALID_MIMES).toContain(ENCODING_STRATEGIES[detail].mime);
+    }
+  });
+
+  it('keeps PNG only for high-detail models where lossless benefits dominate', () => {
+    expect(ENCODING_STRATEGIES.high.mime).toBe('image/png');
+    expect(ENCODING_STRATEGIES.high.quality).toBeNull();
+  });
+
+  it('always re-encodes as JPEG for auto and low detail', () => {
+    expect(ENCODING_STRATEGIES.auto.mime).toBe('image/jpeg');
+    expect(ENCODING_STRATEGIES.low.mime).toBe('image/jpeg');
+    expect(ENCODING_STRATEGIES.auto.quality).not.toBeNull();
+    expect(ENCODING_STRATEGIES.low.quality).not.toBeNull();
+  });
+
+  it('progressively reduces dimension cap as detail lowers', () => {
+    // Locks the published sweet-spots: 2048/1024/512. Changing these
+    // requires a token-cost analysis — fail-loudly if a future edit
+    // accidentally swaps the order.
+    expect(ENCODING_STRATEGIES.high.maxWidth).toBe(2048);
+    expect(ENCODING_STRATEGIES.auto.maxWidth).toBe(1024);
+    expect(ENCODING_STRATEGIES.low.maxWidth).toBe(512);
+    expect(ENCODING_STRATEGIES.high.maxWidth).toBeGreaterThan(ENCODING_STRATEGIES.auto.maxWidth);
+    expect(ENCODING_STRATEGIES.auto.maxWidth).toBeGreaterThan(ENCODING_STRATEGIES.low.maxWidth);
+  });
+
+  it('progressively reduces JPEG quality as detail lowers', () => {
+    expect(ENCODING_STRATEGIES.high.quality).toBeNull();
+    expect(ENCODING_STRATEGIES.auto.quality).toBeGreaterThan(ENCODING_STRATEGIES.low.quality!);
+  });
+
+  it('encodeStrategyForDetail is a pure lookup', () => {
+    for (const detail of VALID_DETAILS) {
+      expect(encodeStrategyForDetail(detail)).toEqual(ENCODING_STRATEGIES[detail]);
+    }
+  });
+});
+
+describe('DOWNSCALER_LIMITS (Phase 4.5 loop constants)', () => {
+  it('keeps maxAttempts small enough for interactive use but large enough to converge', () => {
+    // 3 attempts × 0.8 reduction = 64% of original area at attempt 2,
+    // 51% at attempt 3. Plenty for a 4K → 1K shrink. More than 4 risks
+    // user-visible lag on the Analyze button.
+    expect(DOWNSCALER_LIMITS.maxAttempts).toBeGreaterThanOrEqual(2);
+    expect(DOWNSCALER_LIMITS.maxAttempts).toBeLessThanOrEqual(4);
+  });
+
+  it('keeps the dimension-reduction factor in the safe 0.5–0.95 range', () => {
+    expect(DOWNSCALER_LIMITS.dimensionReductionFactor).toBeGreaterThan(0.5);
+    expect(DOWNSCALER_LIMITS.dimensionReductionFactor).toBeLessThan(0.95);
+  });
+
+  it('floors JPEG quality so images never drop below visibly-artefacted', () => {
+    expect(DOWNSCALER_LIMITS.minQuality).toBeGreaterThanOrEqual(0.3);
+    expect(DOWNSCALER_LIMITS.minQuality).toBeLessThanOrEqual(0.7);
+  });
+
+  it('quality reduction step is small enough to converge without overshooting the floor', () => {
+    // qualityReductionPerAttempt × maxAttempts should not exceed the
+    // (initial quality − minQuality) budget for any strategy.
+    for (const strategy of Object.values(ENCODING_STRATEGIES)) {
+      if (strategy.quality === null) continue;
+      const budget = strategy.quality - DOWNSCALER_LIMITS.minQuality;
+      expect(
+        DOWNSCALER_LIMITS.qualityReductionPerAttempt * DOWNSCALER_LIMITS.maxAttempts,
+        `over-reduces ${strategy.mime}@${strategy.quality} (budget ${budget})`,
+      ).toBeLessThanOrEqual(budget);
+    }
   });
 });

@@ -268,3 +268,95 @@ export function getProviderModelGroups(): ProviderModelGroup[] {
     })),
   }));
 }
+
+/* ------------------------------------------------------------------------ */
+/* Phase 4.5 — vision downscaler strategies                                  */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Per-detail encoding strategy the desktop's image downscaler uses to
+ * steer size-vs-quality tradeoffs before a screenshot is forwarded to
+ * `/chat`. Centralised here so future surfaces (web-portal preview,
+ * companion on-device orchestration) inherit the exact same matrix
+ * without re-implementing the byte-budget loop.
+ *
+ * `mime: 'image/png'` is lossless and is used by 'high' detail when the
+ * source image already fits under `MAX_SCREENSHOT_SIZE_BYTES`. JPEG's
+ * quality knob trades bytes for visual fidelity: 0.95 is high quality,
+ * 0.85 the balanced default, 0.70 the lowest tier.
+ *
+ * `maxWidth` / `maxHeight` are the dimension caps the strategy aims for
+ * before encoding. If the cropped source already fits AND the encoded
+ * payload fits under MAX_IMAGE_BYTES, the strategy is a no-op.
+ */
+export interface EncodingStrategy {
+  mime: 'image/png' | 'image/jpeg';
+  /** JPEG quality in [0, 1]. `undefined` for PNG (lossless). */
+  quality: number | null;
+  /** Pixel-width cap. Source exceeds → resize. */
+  maxWidth: number;
+  /** Pixel-height cap. Source exceeds → resize. */
+  maxHeight: number;
+}
+
+export const ENCODING_STRATEGIES: Record<VisionDetail, EncodingStrategy> = {
+  // 'high' (= flagship VL models: gpt-4o, gpt-4-turbo, all Claude 3/4,
+  // gemini-2.0-pro / 1.5-pro, qwen-vl-max / qwen2.5-vl-72b / qwen3-vl-235b).
+  // Resize only if dimension cap exceeded; preserve PNG for lossless capture
+  // (a 4K screenshot of small UI looks near-identical at JPEG 0.95 vs PNG,
+  // but PNG preserves anti-aliased edges that the flagship models
+  // demonstrably read better).
+  high: { mime: 'image/png', quality: null, maxWidth: 2048, maxHeight: 2048 },
+  // 'auto' (= efficient OpenAI / Anthropic Haiku / Gemini Flash / Qwen-VL-Plus
+  // / Qwen2.5-VL-7B / Qwen3-VL-Plus). Always resize + re-encode. Target hold:
+  // 1024px on the long edge is the published sweet-spot for these models
+  // (token cost plateaus above it).
+  auto: { mime: 'image/jpeg', quality: 0.85, maxWidth: 1024, maxHeight: 1024 },
+  // 'low' (currently unused — placeholder for future "low-detail" routing
+  // when the user opts to economise on tokens). Aggressive downscale +
+  // lower quality.
+  low: { mime: 'image/jpeg', quality: 0.7, maxWidth: 512, maxHeight: 512 },
+};
+
+/**
+ * Lookup helper for parity with `getVisionDetail(model)`. If a future
+ * VisionDetail value is added (e.g. `'medium'`), the Record's exhaustiveness
+ * gate forces an update here.
+ */
+export function encodeStrategyForDetail(detail: VisionDetail): EncodingStrategy {
+  return ENCODING_STRATEGIES[detail];
+}
+
+/**
+ * Phase 4.5 downscaler loop constants. Baked into shared-config so a
+ * future Phase can move the loop into a Web Worker without re-deriving
+ * these (Workers can't import React state, but they CAN import pure
+ * constants from shared-config).
+ */
+export const DOWNSCALER_LIMITS = {
+  /**
+   * Maximum iterations of the (resize × 0.8, halve-quality) loop. After
+   * this many attempts we degrade gracefully: return whatever the last
+   * encode produced even if it exceeds `MAX_IMAGE_BYTES`. Better to
+   * forward a slightly-too-large image than to abort the user's request.
+   */
+  maxAttempts: 3,
+  /**
+   * Multiplicative shrink applied to width AND height each iteration.
+   * 0.8 means attempt 2 is 64% the area of attempt 1; attempt 3 is 51%.
+   */
+  dimensionReductionFactor: 0.8,
+  /**
+   * Linear reduction applied to JPEG quality each iteration (PNG
+   * strategies ignore this). Starts at the strategy's quality and
+   * subtracts this each pass. Calibrated to keep `maxAttempts × step`
+   * within the lowest-strategy budget (low quality 0.7 − minQuality 0.5
+   * = 0.2; step × 3 = 0.15 ≤ 0.2).
+   */
+  qualityReductionPerAttempt: 0.05,
+  /**
+   * Floor on JPEG quality. Encoding below ~0.5 produces visible
+   * artefacts and is rarely worth the byte savings.
+   */
+  minQuality: 0.5,
+} as const;

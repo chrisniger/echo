@@ -1,10 +1,13 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Camera, Loader2, AlertCircle, Check, X } from 'lucide-react';
+import type { AiModel } from '@echo-gpt/shared-types';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { screenshotService, type ScreenshotResult } from '../services/screenshot';
 import { askAssistant } from '../services/chatService';
 import { useSessionStore } from '../stores/session';
+import { downscaleCanvas } from '../services/imageDownscaler';
+import { getVisionDetail } from '@echo-gpt/shared-config';
 
 interface ScreenshotCaptureProps {
   sessionId: string;
@@ -187,7 +190,14 @@ export default function ScreenshotCapture({ sessionId }: ScreenshotCaptureProps)
     });
   };
 
-  const cropToBase64 = useCallback((): string | null => {
+  /**
+   * Phase 4.5: shared crop math — the single source of truth for the
+   * cropped canvas. `buildDownscaledDataUrl` consumes the canvas and
+   * runs it through `downscaleCanvas` so the byte-budget loop governs
+   * the encode. The canvas is reconstructed each call so React's
+   * render never sees a stale offscreen reference.
+   */
+  const cropToCanvas = useCallback((): HTMLCanvasElement | null => {
     if (!lastScreenshot || !selection || selection.width < 2 || selection.height < 2) return null;
     const img = imageRef.current;
     if (!img) return null;
@@ -207,8 +217,32 @@ export default function ScreenshotCapture({ sessionId }: ScreenshotCaptureProps)
       selection.width,
       selection.height,
     );
-    return canvas.toDataURL('image/png');
+    return canvas;
   }, [lastScreenshot, selection]);
+
+  /**
+   * Phase 4.5: register the cropped canvas with the downscaler
+   * pipeline. Reads `VisionDetail` from the current session's model
+   * via the shared-config registry, runs the budget-controlled
+   * (resize × 0.8, halve-quality) loop until the payload fits under
+   * `MAX_IMAGE_BYTES`. After `DOWNSCALER_LIMITS.maxAttempts` we
+   * degrade gracefully — see `imageDownscaler.ts`.
+   *
+   * The wrapping in `useCallback` + the dependency array pins the
+   * strategy lookup to `currentSession.aiModel`. Detail recomputes
+   * per-session so a Mid-session model swap re-runs the next
+   * analyze with the right strategy.
+   */
+  const buildDownscaledDataUrl = useCallback(async (): Promise<string | null> => {
+    const canvas = cropToCanvas();
+    if (!canvas || !currentSession) return null;
+    // `Session.aiModel` is `string` (the persisted column type);
+    // `getVisionDetail` expects the `AiModel` literal union. The runtime
+    // values are kept in lockstep via the Settings ↔ registry round-trip,
+    // so the cast is safe at the call site.
+    const detail = getVisionDetail(currentSession.aiModel as AiModel);
+    return downscaleCanvas(canvas, detail);
+  }, [cropToCanvas, currentSession]);
 
   // Keep a live ref to the capture function so the global event listener
   // always invokes the latest closure without re-registering on every render.
@@ -248,7 +282,9 @@ export default function ScreenshotCapture({ sessionId }: ScreenshotCaptureProps)
       setError('No active session');
       return;
     }
-    const imageBase64 = cropToBase64();
+    // Phase 4.5: route the canvas through the registry-driven
+    // downscaler so the data URL never exceeds MAX_IMAGE_BYTES.
+    const imageBase64 = await buildDownscaledDataUrl();
     if (!imageBase64) {
       setError('Please select an area first');
       return;
