@@ -1,4 +1,5 @@
-export type AiProvider = 'openai' | 'anthropic' | 'gemini' | 'deepseek' | 'openrouter' | 'ollama';
+export type AiProvider =
+  'openai' | 'anthropic' | 'gemini' | 'deepseek' | 'dashscope' | 'openrouter' | 'ollama';
 
 export type AiModel =
   | 'gpt-4o'
@@ -18,6 +19,12 @@ export type AiModel =
   | 'deepseek-chat'
   | 'deepseek-coder'
   | 'deepseek-reasoner'
+  | 'qwen-vl-max'
+  | 'qwen-vl-plus'
+  | 'qwen2.5-vl-72b-instruct'
+  | 'qwen2.5-vl-7b-instruct'
+  | 'qwen3-vl-235b-a22b-instruct'
+  | 'qwen3-vl-plus'
   | 'openrouter/auto'
   | 'ollama/llama3'
   | 'ollama/mixtral'
@@ -141,3 +148,40 @@ export interface RoutingRule {
   fallbackProviders: AiProvider[];
   failoverStrategy: 'sequential' | 'circuit-breaker';
 }
+
+/**
+ * OpenAI-style vision "detail" knob — trades resolution vs. token cost on
+ * image parts. Forwarded as `image_url.detail` to OpenAI- and Anthropic-
+ * compatible providers; ignored by Gemini (which has its own media
+ * resolution controls) and Ollama.
+ */
+export type VisionDetail = 'low' | 'high' | 'auto';
+
+/**
+ * Per-model capability flags advertised across the desktop UI, the AI
+ * gateway router, and the cloud API. Used today to gate vision requests;
+ * future fields (tools, JSON mode, context window, etc.) extend this
+ * record without breaking the current consumers.
+ */
+export interface ModelCapabilities {
+  /** Whether the model can accept `image_url` content parts in chat completions. */
+  vision: boolean;
+  /** Preferred `image_url.detail` when sending screenshots. Falls back to 'auto' when omitted. */
+  visionDetail?: VisionDetail;
+}
+
+/**
+ * Upper bound (in bytes) for a single image part sent through the AI
+ * gateway's `/chat` route. Set to 4 MB so the base64-encoded payload
+ * (~5.3 MB) stays under the Express `json({ limit: '10mb' })` body ceiling
+ * once the surrounding context messages, system prompt, and conversation
+ * history are factored in.
+ *
+ * The desktop's `MAX_SCREENSHOT_SIZE_BYTES` upload cap (in shared-config
+ * storage.ts) is intentionally set slightly higher (5 MB) so round-trips
+ * that upload a pre-encapsulated multipart form can still succeed even
+ * when the raw PNG is just over the gateway cap; the desktop downscaler
+ * (introduced in Phase 4) normalises to MAX_IMAGE_BYTES before the
+ * base64 conversion.
+ */
+export const MAX_IMAGE_BYTES = 4 * 1024 * 1024;

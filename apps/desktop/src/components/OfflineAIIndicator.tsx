@@ -1,15 +1,5 @@
 import { useState, useEffect } from 'react';
-import {
-  Wifi,
-  WifiOff,
-  Cloud,
-  Loader2,
-  HardDrive,
-  RefreshCw,
-  CheckCircle2,
-  XCircle,
-} from 'lucide-react';
-import { cn } from '../lib/utils';
+import { Wifi, WifiOff, Cloud, Loader2, HardDrive, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from './ui/card';
 import { Badge } from './ui/badge';

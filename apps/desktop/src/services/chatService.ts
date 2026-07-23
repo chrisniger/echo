@@ -3,12 +3,7 @@ import { getWsClient } from '../hooks/useWebSocket';
 import { useSessionStore } from '../stores/session';
 import { buildContextMessages } from '../lib/context';
 import type { AiModel, ChatMessage, SessionType } from '@echo-gpt/shared-types';
-
-/** Models that the AI Gateway currently passes multimodal content arrays through to.
- *  Only these models are guaranteed to actually "see" an image when imageBase64 is supplied.
- *  openrouter/auto is intentionally excluded because it may route to non-vision models.
- */
-const VISION_SUPPORTED_MODELS: AiModel[] = ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'];
+import { PREFERRED_VISION_FALLBACK, VISION_CAPABLE_MODELS } from '@echo-gpt/shared-config';
 
 export interface ChatRequestOptions {
   sessionId: string;
@@ -82,15 +77,20 @@ export async function askAssistant(opts: ChatRequestOptions): Promise<ChatRespon
   }
 
   // 4) Ensure a vision-capable model is used when an image is supplied.
-  //    The Gateway's Anthropic/Gemini/Ollama adapters currently stringify
-  //    image content, and DeepSeek does not support vision, so fall back to
-  //    a known vision model when necessary.
+  //    `VISION_CAPABLE_MODELS` is the registry's source of truth and covers
+  //    every model the gateway actually passes `image_url` parts through to:
+  //    Phase 2 rewrote the Anthropic + Gemini adapters to forward
+  //    `inline_data` / `image` natively, Phase 3 added the DashScope /
+  //    Qwen-VL row as OpenAI-compatible. Anything not in the set would be
+  //    silently stringified server-side, so we fall back to
+  //    `PREFERRED_VISION_FALLBACK` (defaults to 'gpt-4o-mini') to guarantee
+  //    the screenshot actually reaches the model.
   let targetModel = opts.model as AiModel;
-  if (opts.imageBase64 && !VISION_SUPPORTED_MODELS.includes(targetModel)) {
+  if (opts.imageBase64 && !VISION_CAPABLE_MODELS.has(targetModel)) {
     console.warn(
-      `[chatService] Model ${targetModel} does not support vision in the current gateway. Falling back to gpt-4o-mini.`,
+      `[chatService] Model ${targetModel} does not support vision in the current gateway. Falling back to ${PREFERRED_VISION_FALLBACK}.`,
     );
-    targetModel = 'gpt-4o-mini';
+    targetModel = PREFERRED_VISION_FALLBACK;
   }
 
   let response: ChatResponse;

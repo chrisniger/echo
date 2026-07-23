@@ -3,7 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { Monitor, Smartphone, Trash2, Edit3, Check, X, RefreshCw, Copy, Link } from 'lucide-react';
 import QRCode from 'qrcode';
 import { usePairingStore, type PairedDevice } from '../stores/pairing';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Badge } from './ui/badge';

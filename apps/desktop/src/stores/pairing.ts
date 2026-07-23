@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { api } from '../lib/api';
-
-const PAIRING_CODE_LENGTH = 6;
+import { errorMessage } from '../lib/utils';
 
 export interface PairedDevice {
   id: string;
@@ -62,8 +61,8 @@ export const usePairingStore = create<PairingState>((set, get) => ({
     try {
       const devices = await api.get<PairedDevice[]>('/devices');
       set({ devices, isLoading: false, error: null });
-    } catch (err: any) {
-      set({ isLoading: false, error: err.message || 'Failed to fetch devices' });
+    } catch (err) {
+      set({ isLoading: false, error: errorMessage(err, 'Failed to fetch devices') });
     }
   },
 
@@ -71,7 +70,7 @@ export const usePairingStore = create<PairingState>((set, get) => ({
     try {
       const pending = await api.get<PendingPairing[]>('/pairing/pending');
       set({ pendingPairings: pending });
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to fetch pending pairings:', err);
     }
   },
@@ -85,8 +84,8 @@ export const usePairingStore = create<PairingState>((set, get) => ({
       });
       set({ activeCode: result, isLoading: false });
       return result;
-    } catch (err: any) {
-      set({ isLoading: false, error: err.message || 'Failed to generate pairing code' });
+    } catch (err) {
+      set({ isLoading: false, error: errorMessage(err, 'Failed to generate pairing code') });
       throw err;
     }
   },
@@ -98,8 +97,8 @@ export const usePairingStore = create<PairingState>((set, get) => ({
       await get().fetchDevices();
       await get().fetchPendingPairings();
       set({ isLoading: false });
-    } catch (err: any) {
-      set({ isLoading: false, error: err.message || 'Failed to approve device' });
+    } catch (err) {
+      set({ isLoading: false, error: errorMessage(err, 'Failed to approve device') });
       throw err;
     }
   },
@@ -107,8 +106,8 @@ export const usePairingStore = create<PairingState>((set, get) => ({
   rejectPairing: async (token: string) => {
     try {
       await api.post('/pairing/reject', { token });
-    } catch (err: any) {
-      set({ error: err.message || 'Failed to reject pairing' });
+    } catch (err) {
+      set({ error: errorMessage(err, 'Failed to reject pairing') });
     }
   },
 
@@ -121,8 +120,8 @@ export const usePairingStore = create<PairingState>((set, get) => ({
       );
       set({ isLoading: false });
       return result;
-    } catch (err: any) {
-      set({ isLoading: false, error: err.message || 'Invalid pairing code' });
+    } catch (err) {
+      set({ isLoading: false, error: errorMessage(err, 'Invalid pairing code') });
       throw err;
     }
   },
@@ -131,8 +130,8 @@ export const usePairingStore = create<PairingState>((set, get) => ({
     try {
       await api.put(`/devices/${id}`, { name });
       await get().fetchDevices();
-    } catch (err: any) {
-      set({ error: err.message || 'Failed to rename device' });
+    } catch (err) {
+      set({ error: errorMessage(err, 'Failed to rename device') });
     }
   },
 
@@ -140,8 +139,8 @@ export const usePairingStore = create<PairingState>((set, get) => ({
     try {
       await api.delete(`/devices/${id}`);
       set((state) => ({ devices: state.devices.filter((d) => d.id !== id) }));
-    } catch (err: any) {
-      set({ error: err.message || 'Failed to remove device' });
+    } catch (err) {
+      set({ error: errorMessage(err, 'Failed to remove device') });
     }
   },
 

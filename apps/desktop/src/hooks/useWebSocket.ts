@@ -1,11 +1,12 @@
 import { useEffect, useRef } from 'react';
-import { WsClient, type WsEvent } from '../lib/ws-client';
+import { WsClient } from '../lib/ws-client';
 import { useSessionStore } from '../stores/session';
 import { useAuthStore } from '../stores/auth';
 import { useDeviceStore } from '../stores/device';
 import { useToastStore } from '../stores/toast';
 import { askAssistant } from '../services/chatService';
 import { onAuthRefresh } from '../lib/api';
+import { asRuntimeSession } from '../lib/sessionRuntime';
 
 let wsClientInstance: WsClient | null = null;
 
@@ -132,13 +133,14 @@ export function useWebSocket() {
       if (inFlightRef.current.has(dedupeKey)) return;
       inFlightRef.current.add(dedupeKey);
 
+      const runtime = asRuntimeSession(session);
       askAssistant({
         sessionId,
         query: content,
         model: session.aiModel || 'deepseek-chat',
-        additionalContext: (session as any).additionalContext || (session as any).context || '',
-        cv: (session as any).cvContent || '',
-        documents: (session as any).documents,
+        additionalContext: runtime?.additionalContext ?? runtime?.context ?? '',
+        cv: runtime?.cvContent ?? '',
+        documents: runtime?.documents,
         language: session.language,
       }).finally(() => {
         // Keep the dedupe key for a short while to ignore duplicate echoes

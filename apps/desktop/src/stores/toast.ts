@@ -33,7 +33,7 @@ function nextId(): string {
  * Use from anywhere: `const pushToast = useToastStore(s => s.pushToast);
  * pushToast({ title: 'Saved', variant: 'success' });`
  */
-export const useToastStore = create<ToastState>((set, get) => ({
+export const useToastStore = create<ToastState>((set) => ({
   toasts: [],
   pushToast: (t) => {
     const id = nextId();

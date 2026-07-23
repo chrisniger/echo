@@ -9,6 +9,7 @@ import type {
 import { contentToString } from '@echo-gpt/shared-types';
 import { BaseProvider } from './index.js';
 import { config } from '../config.js';
+import { buildAnthropicMessages } from '../services/multimodal.js';
 
 export class AnthropicProvider extends BaseProvider {
   readonly name = 'anthropic' as const;
@@ -27,16 +28,10 @@ export class AnthropicProvider extends BaseProvider {
     };
   }
 
-  private toAnthropicMessages(messages: ChatMessage[]): Array<{ role: string; content: string }> {
-    return messages
-      .filter((m: ChatMessage) => m.role !== 'system')
-      .map((m: ChatMessage) => ({ role: m.role, content: contentToString(m.content) }));
-  }
-
   async chat(request: ChatRequest, options?: { signal?: AbortSignal }): Promise<ChatResponse> {
     const start = Date.now();
     const systemMsg = request.messages.find((m: ChatMessage) => m.role === 'system');
-    const messages = this.toAnthropicMessages(request.messages);
+    const messages = buildAnthropicMessages(request.messages);
 
     const body: Record<string, unknown> = {
       model: this.modelMap[request.model] ?? request.model,
@@ -85,7 +80,7 @@ export class AnthropicProvider extends BaseProvider {
     options?: { signal?: AbortSignal },
   ): AsyncGenerator<ChatChunk> {
     const systemMsg = request.messages.find((m: ChatMessage) => m.role === 'system');
-    const messages = this.toAnthropicMessages(request.messages);
+    const messages = buildAnthropicMessages(request.messages);
 
     const body: Record<string, unknown> = {
       model: this.modelMap[request.model] ?? request.model,

@@ -51,7 +51,7 @@ export default function MeetingMode() {
     },
     { id: 'a2', text: 'Schedule follow-up meeting', completed: false, autoExtracted: true },
   ]);
-  const [decisions, setDecisions] = useState<DecisionEntry[]>([
+  const [decisions] = useState<DecisionEntry[]>([
     { id: 'd1', text: 'Move to bi-weekly sprint reviews', timestamp: Date.now() - 300000 },
   ]);
   const [newAgenda, setNewAgenda] = useState('');

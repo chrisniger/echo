@@ -8,11 +8,9 @@ import {
   Loader2,
   FileUp,
 } from 'lucide-react';
-import { cn } from '../lib/utils';
 import { Button } from './ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
-import { Input } from './ui/input';
 import { useCvStore } from '../stores/cv';
 import { analyzeDocument, type DocumentAnalysis } from '../services/documentAnalysis';
 

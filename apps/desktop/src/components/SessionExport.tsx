@@ -152,7 +152,38 @@ export default function SessionExport({
   };
 
   const generateJsonContent = (): string => {
-    const data: any = {
+    // Phase 5: typed accumulator replaces `data: any`. The shape is closed
+    // (every property is conditionally added below) so an explicit interface
+    // is more honest than a free-form Record<string, unknown>.
+    const data: {
+      session: {
+        id: string;
+        name: string;
+        startedAt: string;
+        endedAt: string | null;
+        duration: number;
+        aiModel: string;
+        responseStyle: string;
+        language: string;
+      };
+      exportedAt: string;
+      summary?: string;
+      transcript?: Array<{
+        speaker: string;
+        text: string;
+        startTime: number;
+        endTime: number;
+        confidence: number;
+      }>;
+      aiResponses?: Array<{
+        query: string;
+        response: string;
+        model: string;
+        provider: string;
+        tokensUsed: number;
+        createdAt: string;
+      }>;
+    } = {
       session: {
         id: session.id,
         name: session.name,
@@ -270,28 +301,23 @@ export default function SessionExport({
   const handleExport = async () => {
     let blob: Blob;
     let extension: string;
-    let mimeType: string;
 
     switch (format) {
       case 'json':
         blob = new Blob([generateJsonContent()], { type: 'application/json' });
         extension = '.json';
-        mimeType = 'application/json';
         break;
       case 'txt':
         blob = new Blob([generateTxtContent()], { type: 'text/plain' });
         extension = '.txt';
-        mimeType = 'text/plain';
         break;
       case 'srt':
         blob = new Blob([generateSrtContent()], { type: 'text/plain' });
         extension = '.srt';
-        mimeType = 'text/plain';
         break;
       case 'pdf':
         blob = await generatePdfContent();
         extension = '.html'; // Changed to .html since we're generating HTML
-        mimeType = 'text/html';
         break;
       default:
         return;

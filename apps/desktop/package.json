@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "pnpm --filter @echo-gpt/shared-config build && pnpm --filter @echo-gpt/shared-types build",
     "dev": "vite",
+    "prebuild": "pnpm --filter @echo-gpt/shared-config build && pnpm --filter @echo-gpt/shared-types build",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
@@ -16,6 +18,7 @@
     "tauri:build": "tauri build"
   },
   "dependencies": {
+    "@echo-gpt/shared-config": "workspace:*",
     "@echo-gpt/shared-types": "workspace:*",
     "@radix-ui/react-dialog": "^1.1.0",
     "@radix-ui/react-dropdown-menu": "^2.1.0",

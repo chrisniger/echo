@@ -9,6 +9,7 @@ import { AnthropicProvider } from './providers/anthropic.js';
 import { GeminiProvider } from './providers/gemini.js';
 import { DeepSeekProvider } from './providers/deepseek.js';
 import { OpenRouterProvider } from './providers/openrouter.js';
+import { DashScopeProvider } from './providers/dashscope.js';
 import { OllamaProvider } from './providers/ollama.js';
 import { createHealthRouter } from './routes/health.js';
 import { createChatRouter } from './routes/chat.js';
@@ -34,6 +35,7 @@ const providers = [
   { name: 'Gemini', ctor: GeminiProvider, key: config.gemini.apiKey },
   { name: 'DeepSeek', ctor: DeepSeekProvider, key: config.deepseek.apiKey },
   { name: 'OpenRouter', ctor: OpenRouterProvider, key: config.openrouter.apiKey },
+  { name: 'DashScope', ctor: DashScopeProvider, key: config.dashscope.apiKey },
   { name: 'Ollama', ctor: OllamaProvider, key: null },
 ];
 

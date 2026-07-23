@@ -1,13 +1,5 @@
 import { useState } from 'react';
-import {
-  Calendar,
-  CalendarDays,
-  Link2,
-  Link2Off,
-  RefreshCw,
-  CheckCircle2,
-  XCircle,
-} from 'lucide-react';
+import { Calendar, CalendarDays, Link2, Link2Off, CheckCircle2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Button } from './ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from './ui/card';

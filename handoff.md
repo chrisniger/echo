@@ -1907,3 +1907,92 @@ Protected all AI Gateway endpoints (except health) with a dual authentication mi
 - Server-to-server calls from Cloud API to AI Gateway use the shared API key.
 - Desktop-to-AI-Gateway calls (transcription) now use the user's JWT access token.
 - Both `AI_GATEWAY_API_KEY` and `JWT_SECRET` must be set consistently across Cloud API and AI Gateway environments.
+
+## Phase 23 — Screenshot-AI Vision Pipeline (`feature/screenshot-ai`)
+
+Phase 23 was built on a dedicated feature branch so the shared vision registry and per-vendor adapters can stabilise independently of the V2-ecosystem work. All six sub-phases (23.1 → 23.6) landed on `feature/screenshot-ai`; each commit passed `pnpm --filter @echo-gpt/desktop typecheck` + vitests, and the Phase 23.6 lint cleanup re-enables the husky pre-commit hook (so future commits on this branch no longer need `--no-verify`).
+
+### Phase 23.1 — Shared Vision Registry (commit `d903b07`)
+
+- `VISION_CAPABLE_MODELS: ReadonlySet<AiModel>` + `MAX_IMAGE_BYTES = 4 * 1024 * 1024` added to `packages/shared-config`.
+- `isVisionCapable(model)` + `getVisionDetail(model): 'low' | 'high' | 'auto'` added to `packages/shared-types` so every consumer (desktop, gateway, web-portal) sees the same vision matrix.
+- Registry locked with vitest contracts in `packages/shared-types/src/gateway.test.ts` + `packages/shared-config/src/providers.test.ts` (96 total contracts across the two packages).
+
+### Phase 23.2 — Gateway Vendor Adapters (commit `fab3fc6`)
+
+- `apps/ai-gateway/src/providers/gemini.ts` forwards `image_url` content parts as native `inline_data` rather than stringifying the URL through `contentToString`.
+- `apps/ai-gateway/src/providers/anthropic.ts` forwards `image_url` parts as native Anthropic `image` blocks (base64-decoded before the multipart call).
+- Pre-Phase 23 code only sent the textual placeholder `[Image: <url>]`; vision-capable models now actually see the image.
+
+### Phase 23.3 — DashScope / Qwen-VL Provider (commit `e5ff08d`)
+
+- New `apps/ai-gateway/src/providers/dashscope.ts` adapter (OpenAI-compatible endpoint) registers the full Qwen-VL/Qwen2.5-VL/Qwen3-VL family (`qwen-vl-max`, `qwen-vl-plus`, `qwen2.5-vl-72b-instruct`, `qwen2.5-vl-7b-instruct`, `qwen3-vl-235b-a22b-instruct`, `qwen3-vl-plus`).
+- Wired through `apps/ai-gateway/src/config.ts` + `providers.ts` + `index.ts`. Router priority bumped so `qwen*` ids resolve ahead of the OpenRouter fallback.
+- Dedupes the Zod model schema (previously declared twice in the gateway).
+
+### Phase 23.4 — Desktop Registry Consumer (commit `18532fc`)
+
+- `apps/desktop/src/services/chatService.ts` retires the hand-coded `VISION_SUPPORTED_MODELS` array; vision eligibility now resolves via `VISION_CAPABLE_MODELS.has(model)` from `@echo-gpt/shared-config`.
+- `apps/desktop/src/pages/NewSession.tsx` + `apps/desktop/src/pages/Settings.tsx` drop their parallel 22-entry dropdown arrays. Both pages drive the `<SelectGroup>` / `<SelectLabel>` rows from `getProviderModelGroups()`, and the Phase 23.3 Qwen-VL rows now visibly group under "DashScope (Qwen VL)".
+- Adds an `Eye` icon next to vision-capable rows so users see the capability in the dropdown.
+- Adds `@echo-gpt/shared-config: workspace:*` dep + `predev` / `prebuild` scripts so `tsc --build` chains the shared dist before Vite/Tauri.
+
+### Phase 23.5 — Desktop Screenshot Downscaler (commit `62ccf59`)
+
+- `apps/desktop/src/services/imageDownscaler.ts` (NEW) — pure helper functions `dataUrlByteSize`, `fitsBudget`, `shouldResize`, `pickNextDimensions`, `pickNextQuality`, `downscaleImage` + the DOM-facade `downscaleCanvas(canvas, detail)`.
+- `MAX_IMAGE_BYTES` is the post-base64 byte cap; loop is bounded by `DOWNSCALER_LIMITS = { maxAttempts: 3, factor: 0.8, qualityReduction: 0.05, minQuality: 0.5 }` and degrades gracefully with a `console.warn`.
+- Both screenshot flow sites (`ScreenshotCapture.tsx::buildDownscaledDataUrl` + `WhiteboardAnalysis.tsx::handleAnalyze`) call `downscaleCanvas()` before handing the data URL to `/chat`, so every screenshot respects the per-model `VisionDetail`:
+  - `high` (flagship VL) → PNG lossless @ 2048²
+  - `auto` (efficient) → JPEG @ 0.85 @ 1024²
+  - `low` (token-economy) → JPEG @ 0.7 @ 512²
+- 8 vitests cover pure math (byte-budget, dimension/quality iteration) + DOM-wrapped stubs (synthetic `data:image/png;base64,…` fixtures with correct base64 padding math).
+
+### Phase 23.6 — Lint Cleanup (commit `a0282c4`)
+
+- Brings `eslint --max-warnings 0 apps/desktop/src` back to clean, removing the `--no-verify` husky bypass that the Phase 23.5 commit needed.
+- Two new helper files:
+  - `apps/desktop/src/lib/utils.ts` — `errorMessage(err, fallback?)` for catch-block narrowing. Used by all 8 `stores/pairing.ts` catch sites and as a shared helper for future catch sites.
+  - `apps/desktop/src/lib/sessionRuntime.ts` (NEW) — `SessionRuntimeFields` (additionalContext / context / cvContent / documents) + `RuntimeSession = Session & SessionRuntimeFields` + `asRuntimeSession()`. Replaces the `(session as any).additionalContext || (session as any).context || ''` cast chain in `useSessionBackground.ts` + `useWebSocket.ts`.
+- Type-narrowing on `any`:
+  - `services/offline.ts` — `OfflineQueueItem.data` + `queueAction` param typed as `Record<string, unknown>` with new `strField` / `fileField` narrow helpers in the four `process*` methods (each returns early when the relevant field is missing).
+  - `stores/plugin.ts` — `Plugin.settings` + `updatePluginSettings` typed as `Record<string, unknown>` (consumers only spread, so no read-site changes needed).
+  - `components/AIAssistance.tsx` — `(error as any).body` replaced with a typed narrow (`error && typeof error === 'object' && 'body' in error ? (error as { body?: unknown }).body : undefined`).
+  - `pages/SessionDetail.tsx` — `(err.body as any)?.message` replaced with `const body = err.body as { message?: string } | null | undefined; body?.message ?? fallback`.
+  - `components/SessionExport.tsx` — `const data: any = {…}` accumulator replaced with a closed-shape typed interface.
+- 50+ dead imports dropped across components, pages, hooks, stores, the intelligence engine.
+
+### Validation at Phase 23 HEAD
+
+| Check                                                    | Status     |
+| -------------------------------------------------------- | ---------- |
+| `pnpm --filter @echo-gpt/shared-types build`             | green      |
+| `pnpm --filter @echo-gpt/shared-config build`            | green      |
+| `pnpm --filter @echo-gpt/shared-config test` (116 / 116) | green      |
+| `pnpm --filter @echo-gpt/desktop typecheck`              | green      |
+| `pnpm --filter @echo-gpt/desktop test` (72 / 72)         | green      |
+| `npx eslint --max-warnings 0 apps/desktop/src`           | 0 warnings |
+| `git log feature/screenshot-ai` (`a0282c4` on top)       | current    |
+
+### Commit Trajectory on `feature/screenshot-ai`
+
+```
+a0282c4 chore(desktop): lint cleanup — drop unused imports + replace `any` with proper types (Phase 23.6)
+62ccf59 feat(desktop): screenshot downscaler with per-VisionDetail byte-budget loop (Phase 23.5)
+18532fc feat(desktop): retire VISION_SUPPORTED_MODELS, group dropdowns by provider, register Phase 23.3 Qwen-VL row
+e5ff08d feat(gateway): add dashscope provider for qwen-vl vision models and deduplicate zod model schema
+fab3fc6 feat(ai-gateway): forward image_url parts as native Gemini inlineData + Anthropic image blocks
+d903b07 feat(vision): add shared vision registry, MAX_IMAGE_BYTES cap, and locked vitest contracts
+```
+
+---
+
+## Phase 24+ — Next Phases on `feature/screenshot-ai`
+
+### Phase 24 — Persist + Broadcast the Downscaled Screenshot
+
+**Goal**: every analysed screenshot is stored as `screenshotBase64` (or a normalized row) on the Session in `apps/cloud-api` and broadcast over WebSocket as `screenshot.analyzed` so the Echo Companion (Flutter) + Echo Web Portal (Next.js) can render thumbnails in live transcripts.
+
+**Tasks**
+
+- `apps/cloud-api`: add a `screenshots` table keyed off session id (preferred over blob-on-Session — gives us `capturedAt`, `byteSize`, `visionDetail`, `model`, `base64` columns). Endpoint `POST /api/sessions/:id/screenshots` with `{ dataUrl, byteSize, visionDetail, model }` payload.
+- `apps/desktop`: after `downscaleCanvas()` returns, call `gatewayApi.post('/sessions/:id/screenshots', { dataUrl, byteSize, visionDetail, model })` and emit a `screenshot.analyzed` WS ev

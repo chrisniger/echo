@@ -7,7 +7,6 @@ import {
   Settings,
   LogOut,
   Menu,
-  X,
   Bot,
   User,
   FileText,

@@ -4,7 +4,7 @@ import { PlusCircle, History, Settings, Clock, CalendarDays, Activity } from 'lu
 import { useAuthStore } from '../stores/auth';
 import { useSessionStore } from '../stores/session';
 import { Button } from '../components/ui/button';
-import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
+import { Card, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 
 const statusLabels: Record<string, 'default' | 'success' | 'warning' | 'secondary'> = {

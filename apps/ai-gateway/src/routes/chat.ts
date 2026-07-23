@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { ALL_AI_MODELS } from '@echo-gpt/shared-config';
 import type { AiRouter } from '../services/router.js';
 import { ContextAssembler, SYSTEM_PROMPT_BASE } from '../services/context-assembler.js';
 import { TokenCounter } from '../services/token-counter.js';
@@ -11,31 +12,15 @@ const contentPartSchema = z.union([
   z.object({ type: z.literal('image_url'), image_url: z.object({ url: z.string() }) }),
 ]);
 
+/**
+ * `z.enum` needs a tuple of string literals (Nx `[string, ...string[]]`).
+ * `ALL_AI_MODELS` ships as a `readonly AiModel[]` derived from
+ * `MODEL_CAPABILITIES`; cast through `unknown` so adding a new model to
+ * the `AiModel` union automatically widens this whitelist without a
+ * parallel edit here.
+ */
 const chatRequestSchema = z.object({
-  model: z.enum([
-    'gpt-4o',
-    'gpt-4o-mini',
-    'gpt-4-turbo',
-    'gpt-3.5-turbo',
-    'claude-4-opus',
-    'claude-4-sonnet',
-    'claude-3.5-sonnet',
-    'claude-3-opus',
-    'claude-3-sonnet',
-    'claude-3-haiku',
-    'gemini-2.0-flash',
-    'gemini-2.0-pro',
-    'gemini-1.5-pro',
-    'gemini-1.5-flash',
-    'deepseek-chat',
-    'deepseek-coder',
-    'deepseek-reasoner',
-    'openrouter/auto',
-    'ollama/llama3',
-    'ollama/mixtral',
-    'ollama/qwen2.5',
-    'ollama/codellama',
-  ]),
+  model: z.enum(ALL_AI_MODELS as unknown as [string, ...string[]]),
   messages: z.array(
     z.object({
       role: z.enum(['system', 'user', 'assistant']),

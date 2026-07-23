@@ -2,7 +2,7 @@ import { fastRuleCheck } from './fastRules';
 import { DEFAULT_INTERVIEW_PATTERNS, parseCustomPatterns, patternCheck } from './patterns';
 import { contextCheck, inferSessionMode } from './contextMemory';
 import { classifyWithAi, buildClassifierRequest } from './aiClassifier';
-import { getPromptTemplate } from './promptRouter';
+
 import type {
   ContextMemory,
   DetectionLayer,

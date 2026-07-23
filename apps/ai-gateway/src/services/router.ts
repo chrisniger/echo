@@ -68,8 +68,9 @@ export class AiRouter {
           anthropic: 2,
           gemini: 3,
           deepseek: 4,
-          openrouter: 5,
-          ollama: 6,
+          dashscope: 5,
+          openrouter: 6,
+          ollama: 7,
         };
         return (priority[a.name] ?? 99) - (priority[b.name] ?? 99);
       })[0];

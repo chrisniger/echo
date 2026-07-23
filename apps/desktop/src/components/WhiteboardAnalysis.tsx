@@ -1,10 +1,14 @@
 import { useState, useRef, useCallback } from 'react';
-import { Image, Upload, Scan, Loader2, FileText, Tags } from 'lucide-react';
+import { Image as ImageIcon, Upload, Scan, Loader2, FileText, Tags } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Button } from './ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
 import { gatewayApi } from '../lib/api';
+import { downscaleImage } from '../services/imageDownscaler';
+import { getVisionDetail } from '@echo-gpt/shared-config';
+import { useSessionStore } from '../stores/session';
+import type { AiModel, VisionDetail } from '@echo-gpt/shared-types';
 
 interface AnalysisResult {
   ocrText: string;
@@ -12,6 +16,11 @@ interface AnalysisResult {
   elements: string[];
 }
 
+/**
+ * Whiteboard / diagram analysis. The /chat request body is downscaled
+ * through the shared-config registry (Phase 4.5) before submission so
+ * the data URL never exceeds MAX_IMAGE_BYTES (4 MB post-encoding).
+ */
 export default function WhiteboardAnalysis() {
   const [image, setImage] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -63,16 +72,60 @@ export default function WhiteboardAnalysis() {
     [handleFile],
   );
 
+  // Phase 4.5: pull the current session's model so the downscaler uses
+  // the same VisionDetail the rest of the app would. Falls back to
+  // 'high' (gpt-4o's tier) when no session is active. `Session.aiModel`
+  // is the persisted `string` column type, so the literal-union cast is
+  // safe at runtime (the Settings dropdown keeps registry keys in
+  // lockstep).
+  const currentSession = useSessionStore((s) => s.currentSession);
+  const activeDetail: VisionDetail = currentSession
+    ? getVisionDetail(currentSession.aiModel as AiModel)
+    : 'high';
+
   const handleAnalyze = async () => {
     if (!image) return;
     setIsAnalyzing(true);
     setResult(null);
 
+    // Phase 4.5: run the bytes-budget loop on the file-derived data URL
+    // before posting. Bridge to the canvas-based downscaler via a
+    // tiny decode-Image-then-encode loop (mirrors the ScreenshotCapture
+    // path). The downscaler's stub-friendly encode signature lets us
+    // avoid pulling a second canvas copy.
+    let downscaled = image;
     try {
-      const res = await gatewayApi.post<{
+      const decoded = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = image;
+      });
+      downscaled = await downscaleImage(decoded, activeDetail, (w, h, mime, q) => {
+        const out = document.createElement('canvas');
+        out.width = w;
+        out.height = h;
+        const ctx = out.getContext('2d');
+        if (!ctx) return image;
+        ctx.drawImage(decoded, 0, 0, w, h);
+        return q === null ? out.toDataURL(mime) : out.toDataURL(mime, q);
+      });
+    } catch {
+      // Decode failed (rare — uphold the previous behaviour and ship
+      // the raw image). The user still gets an analysis response;
+      // the gateway will 502 if too large and we surface that.
+      console.warn(
+        '[WhiteboardAnalysis] image decode failed; forwarding original to /chat. Gateway may 502 if over MAX_IMAGE_BYTES (4 MB).',
+      );
+      downscaled = image;
+    }
+
+    let res;
+    try {
+      res = await gatewayApi.post<{
         content: string;
       }>('/chat', {
-        model: 'gpt-4o',
+        model: (currentSession?.aiModel as AiModel | undefined) ?? 'gpt-4o',
         messages: [
           {
             role: 'user',
@@ -81,18 +134,10 @@ export default function WhiteboardAnalysis() {
                 type: 'text',
                 text: 'Analyze this whiteboard/diagram image. Provide: 1) OCR text extracted, 2) A description of the diagram, 3) Recognized elements as a list.',
               },
-              { type: 'image_url', image_url: { url: image } },
+              { type: 'image_url', image_url: { url: downscaled } },
             ],
           },
         ],
-      });
-
-      const lines = res.content.split('\n').filter(Boolean);
-      setResult({
-        ocrText: lines.slice(0, 3).join('\n') || 'Text extraction pending...',
-        description: lines[3] || 'Diagram analysis complete.',
-        elements:
-          lines.slice(4).length > 0 ? lines.slice(4) : ['Flowchart', 'Text blocks', 'Arrows'],
       });
     } catch {
       setResult({
@@ -100,8 +145,17 @@ export default function WhiteboardAnalysis() {
         description: 'Unable to analyze diagram. Please check your connection.',
         elements: [],
       });
+      setIsAnalyzing(false);
+      return;
     }
 
+    const lines = res.content.split('\n').filter(Boolean);
+    setResult({
+      ocrText: lines.slice(0, 3).join('\n') || 'Text extraction pending...',
+      description: lines[3] || 'Diagram analysis complete.',
+      elements:
+        lines.slice(4).length > 0 ? lines.slice(4) : ['Flowchart', 'Text blocks', 'Arrows'],
+    });
     setIsAnalyzing(false);
   };
 
@@ -191,7 +245,7 @@ export default function WhiteboardAnalysis() {
 
             <div>
               <div className="flex items-center gap-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                <Image className="h-4 w-4 text-indigo-500" />
+                <ImageIcon className="h-4 w-4 text-indigo-500" />
                 Description
               </div>
               <p className="text-sm text-zinc-500 dark:text-zinc-400">{result.description}</p>

@@ -1,12 +1,30 @@
 import { api } from '../lib/api';
 
+/**
+ * Phase 5: the data field is intentionally heterogeneous — different
+ * `type`s carry different payloads. We type it as `Record<string, unknown>`
+ * and narrow at the read sites (processSession / processTranscript /
+ * processAiResponse / processScreenshot), each of which only touches
+ * fields relevant to its concrete kind.
+ */
 export interface OfflineQueueItem {
   id: string;
   type: 'session' | 'transcript' | 'ai_response' | 'screenshot';
   action: 'create' | 'update' | 'delete';
-  data: any;
+  data: Record<string, unknown>;
   timestamp: number;
   retryCount: number;
+}
+
+/** Helper for narrowing `Record<string, unknown>` to a string field. */
+function strField(data: Record<string, unknown>, key: string): string | undefined {
+  return typeof data[key] === 'string' ? (data[key] as string) : undefined;
+}
+
+/** Helper for narrowing `Record<string, unknown>` to a `File` field. */
+function fileField(data: Record<string, unknown>, key: string): File | undefined {
+  const value = data[key];
+  return value instanceof File ? value : undefined;
 }
 
 export interface SyncStatus {
@@ -62,12 +80,12 @@ class OfflineService {
         method: 'GET',
         signal: AbortSignal.timeout(5000),
       });
-      
+
       this.isOnline = response.ok;
     } catch {
       this.isOnline = false;
     }
-    
+
     this.notifyListeners();
   }
 
@@ -75,7 +93,7 @@ class OfflineService {
     console.log('[OfflineService] App is online');
     this.isOnline = true;
     this.notifyListeners();
-    
+
     // Automatically sync when coming back online
     this.sync();
   }
@@ -88,7 +106,7 @@ class OfflineService {
 
   private notifyListeners(): void {
     const status = this.getStatus();
-    this.listeners.forEach(listener => listener(status));
+    this.listeners.forEach((listener) => listener(status));
   }
 
   /**
@@ -114,7 +132,11 @@ class OfflineService {
   /**
    * Queue an action for later sync
    */
-  queueAction(type: OfflineQueueItem['type'], action: OfflineQueueItem['action'], data: any): void {
+  queueAction(
+    type: OfflineQueueItem['type'],
+    action: OfflineQueueItem['action'],
+    data: Record<string, unknown>,
+  ): void {
     const item: OfflineQueueItem = {
       id: crypto.randomUUID(),
       type,
@@ -162,7 +184,7 @@ class OfflineService {
         console.log(`[OfflineService] Synced ${item.action} ${item.type}`);
       } catch (error) {
         console.error(`[OfflineService] Failed to sync ${item.action} ${item.type}:`, error);
-        
+
         item.retryCount++;
         if (item.retryCount < 3) {
           failedItems.push(item);
@@ -207,29 +229,40 @@ class OfflineService {
     if (item.action === 'create') {
       await api.post('/sessions', item.data);
     } else if (item.action === 'update') {
-      await api.put(`/sessions/${item.data.id}`, item.data);
+      const id = strField(item.data, 'id');
+      if (!id) return;
+      await api.put(`/sessions/${id}`, item.data);
     } else if (item.action === 'delete') {
-      await api.delete(`/sessions/${item.data.id}`);
+      const id = strField(item.data, 'id');
+      if (!id) return;
+      await api.delete(`/sessions/${id}`);
     }
   }
 
   private async processTranscript(item: OfflineQueueItem): Promise<void> {
     if (item.action === 'create') {
-      await api.post(`/sessions/${item.data.sessionId}/transcript`, item.data);
+      const sessionId = strField(item.data, 'sessionId');
+      if (!sessionId) return;
+      await api.post(`/sessions/${sessionId}/transcript`, item.data);
     }
   }
 
   private async processAiResponse(item: OfflineQueueItem): Promise<void> {
     if (item.action === 'create') {
-      await api.post(`/sessions/${item.data.sessionId}/responses`, item.data);
+      const sessionId = strField(item.data, 'sessionId');
+      if (!sessionId) return;
+      await api.post(`/sessions/${sessionId}/responses`, item.data);
     }
   }
 
   private async processScreenshot(item: OfflineQueueItem): Promise<void> {
     if (item.action === 'create') {
+      const file = fileField(item.data, 'file');
+      const sessionId = strField(item.data, 'sessionId');
+      if (!file || !sessionId) return;
       const formData = new FormData();
-      formData.append('file', item.data.file);
-      formData.append('sessionId', item.data.sessionId);
+      formData.append('file', file);
+      formData.append('sessionId', sessionId);
       await api.post('/screenshots', formData);
     }
   }

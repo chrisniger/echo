@@ -56,6 +56,10 @@ export const config = {
     apiKey: process.env.OPENROUTER_API_KEY || '',
     baseUrl: process.env.OPENROUTER_BASE_URL || PROVIDER_DEFAULTS.openrouter.baseUrl,
   },
+  dashscope: {
+    apiKey: process.env.DASHSCOPE_API_KEY || '',
+    baseUrl: process.env.DASHSCOPE_BASE_URL || PROVIDER_DEFAULTS.dashscope.baseUrl,
+  },
   groq: {
     apiKey: process.env.GROQ_API_KEY || '',
     baseUrl: process.env.GROQ_BASE_URL || 'https://api.groq.com/openai/v1',

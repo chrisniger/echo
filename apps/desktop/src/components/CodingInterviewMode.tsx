@@ -1,9 +1,7 @@
 import { useState } from 'react';
 import { Code2, Sparkles, BarChart3, Beaker, ChevronDown, ChevronRight } from 'lucide-react';
-import { cn } from '../lib/utils';
 import { Button } from './ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from './ui/card';
-import { Badge } from './ui/badge';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from './ui/select';
 
 const languages = [
@@ -37,7 +35,7 @@ const sampleCode = `function twoSum(nums: number[], target: number): number[] {
 
 export default function CodingInterviewMode() {
   const [language, setLanguage] = useState('TypeScript');
-  const [code, setCode] = useState(sampleCode);
+  const [code] = useState(sampleCode);
   const [complexity, setComplexity] = useState<{ time: string; space: string } | null>(null);
   const [testCases, setTestCases] = useState<string[]>([]);
   const [showExplanation, setShowExplanation] = useState(false);

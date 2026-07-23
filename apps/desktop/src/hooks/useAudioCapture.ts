@@ -1,9 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { audioService, type AudioDevice, type CaptureState, type TranscriptionResult } from '../services/audio';
+import {
+  audioService,
+  type AudioDevice,
+  type CaptureState,
+  type TranscriptionResult,
+} from '../services/audio';
 import { invoke } from '@tauri-apps/api/core';
 import { useSessionStore } from '../stores/session';
 import { useSettingsStore } from '../stores/settings';
-import { gatewayApi } from '../lib/api';
 import { createQuestionDetectionEngine, type EngineConfig } from '../services/intelligence';
 
 export type AudioSource = 'microphone' | 'system' | 'mixed';
@@ -40,7 +44,7 @@ export function useAudioCapture(options: UseAudioCaptureOptions = {}): UseAudioC
     transcriptionInterval = 5000, // Transcribe every 5 seconds
     onTranscription,
     onQuestionDetected,
-    onError
+    onError,
   } = options;
 
   const [isCapturing, setIsCapturing] = useState(false);
@@ -55,8 +59,8 @@ export function useAudioCapture(options: UseAudioCaptureOptions = {}): UseAudioC
 
   const intervalRef = useRef<number | null>(null);
   const transcriptionIntervalRef = useRef<number | null>(null);
-  const addTranscriptSegment = useSessionStore(state => state.addTranscriptSegment);
-  const currentSession = useSessionStore(state => state.currentSession);
+  const addTranscriptSegment = useSessionStore((state) => state.addTranscriptSegment);
+  const currentSession = useSessionStore((state) => state.currentSession);
 
   const refreshDevices = useCallback(async () => {
     try {
@@ -69,114 +73,126 @@ export function useAudioCapture(options: UseAudioCaptureOptions = {}): UseAudioC
     }
   }, [onError]);
 
-  const startCapture = useCallback(async (source?: AudioSource, selectedDeviceId?: string) => {
-    try {
-      setError(null);
-      const captureSource = source || currentSource;
+  const startCapture = useCallback(
+    async (source?: AudioSource, selectedDeviceId?: string) => {
+      try {
+        setError(null);
+        const captureSource = source || currentSource;
 
-      if (captureSource === 'microphone') {
-        await audioService.startMicrophoneCapture(selectedDeviceId || deviceId);
-      } else if (captureSource === 'system') {
-        await audioService.startSystemAudioCapture(selectedDeviceId || deviceId);
-      } else if (captureSource === 'mixed') {
-        await audioService.startMicrophoneCapture(selectedDeviceId || deviceId);
-        await audioService.startSystemAudioCapture(selectedDeviceId || deviceId);
-      }
-
-      setCurrentSource(captureSource);
-      setIsCapturing(true);
-      
-      // Start polling for capture state
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-      intervalRef.current = window.setInterval(async () => {
-        const state = await audioService.getCaptureState();
-        setCaptureState(state);
-        if (!state.is_capturing) {
-          setIsCapturing(false);
-          if (intervalRef.current) {
-            clearInterval(intervalRef.current);
-            intervalRef.current = null;
-          }
+        if (captureSource === 'microphone') {
+          await audioService.startMicrophoneCapture(selectedDeviceId || deviceId);
+        } else if (captureSource === 'system') {
+          await audioService.startSystemAudioCapture(selectedDeviceId || deviceId);
+        } else if (captureSource === 'mixed') {
+          await audioService.startMicrophoneCapture(selectedDeviceId || deviceId);
+          await audioService.startSystemAudioCapture(selectedDeviceId || deviceId);
         }
-      }, 1000);
 
-      // Start continuous transcription if enabled
-      if (continuousTranscription) {
-        if (transcriptionIntervalRef.current) {
-          clearInterval(transcriptionIntervalRef.current);
+        setCurrentSource(captureSource);
+        setIsCapturing(true);
+
+        // Start polling for capture state
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
         }
-        transcriptionIntervalRef.current = window.setInterval(async () => {
-          try {
-            const result = await audioService.transcribeAudio();
-            if (result && result.segments && result.segments.length > 0) {
-              const combinedText = result.segments
-                .map((segment) => segment.text.trim())
-                .filter(Boolean)
-                .join(' ')
-                .replace(/\s+/g, ' ')
-                .trim();
-
-              onTranscription?.(result);
-              
-              // Add segments to session store
-              if (currentSession) {
-                for (const segment of result.segments) {
-                  addTranscriptSegment({
-                    id: crypto.randomUUID(),
-                    sessionId: currentSession.id,
-                    speakerId: 'unknown',
-                    speakerLabel: 'Speaker',
-                    text: segment.text,
-                    confidence: segment.confidence || 0,
-                    startTime: segment.start,
-                    endTime: segment.end,
-                    isEdited: false,
-                    createdAt: new Date().toISOString(),
-                  });
-                }
-              }
-
-              // Detect questions once per batch so the AI sees the combined
-              // utterance instead of a partial STT slice.
-              const settings = useSettingsStore.getState().settings;
-              const qd = settings.questionDetection;
-              if (qd?.enabled !== false) {
-                const engineConfig: EngineConfig = {
-                  enabled: true,
-                  threshold: qd?.threshold ?? 0.7,
-                  responseDelayMs: qd?.responseDelayMs ?? 0,
-                  contextWindowSize: qd?.contextWindowSize ?? 30,
-                  enableFastRules: qd?.enableFastRules ?? true,
-                  enablePatterns: qd?.enablePatterns ?? true,
-                  enableContextMemory: qd?.enableContextMemory ?? true,
-                  enableClassifier: false, // skip classifier for manual trigger
-                  customPatterns: qd?.questionPatterns ?? [],
-                  classifierModel: qd?.classifierModel,
-                  gatewayUrl: 'http://localhost:4001',
-                  getAccessToken: () => null,
-                };
-                const engine = createQuestionDetectionEngine(engineConfig);
-                const detected = await engine.detect(combinedText, { skipClassifier: true });
-                if (detected.isQuestion) {
-                  onQuestionDetected?.(combinedText);
-                }
-              }
+        intervalRef.current = window.setInterval(async () => {
+          const state = await audioService.getCaptureState();
+          setCaptureState(state);
+          if (!state.is_capturing) {
+            setIsCapturing(false);
+            if (intervalRef.current) {
+              clearInterval(intervalRef.current);
+              intervalRef.current = null;
             }
-          } catch (err) {
-            console.error('[Continuous Transcription] Error:', err);
           }
-        }, transcriptionInterval);
+        }, 1000);
+
+        // Start continuous transcription if enabled
+        if (continuousTranscription) {
+          if (transcriptionIntervalRef.current) {
+            clearInterval(transcriptionIntervalRef.current);
+          }
+          transcriptionIntervalRef.current = window.setInterval(async () => {
+            try {
+              const result = await audioService.transcribeAudio();
+              if (result && result.segments && result.segments.length > 0) {
+                const combinedText = result.segments
+                  .map((segment) => segment.text.trim())
+                  .filter(Boolean)
+                  .join(' ')
+                  .replace(/\s+/g, ' ')
+                  .trim();
+
+                onTranscription?.(result);
+
+                // Add segments to session store
+                if (currentSession) {
+                  for (const segment of result.segments) {
+                    addTranscriptSegment({
+                      id: crypto.randomUUID(),
+                      sessionId: currentSession.id,
+                      speakerId: 'unknown',
+                      speakerLabel: 'Speaker',
+                      text: segment.text,
+                      confidence: segment.confidence || 0,
+                      startTime: segment.start,
+                      endTime: segment.end,
+                      isEdited: false,
+                      createdAt: new Date().toISOString(),
+                    });
+                  }
+                }
+
+                // Detect questions once per batch so the AI sees the combined
+                // utterance instead of a partial STT slice.
+                const settings = useSettingsStore.getState().settings;
+                const qd = settings.questionDetection;
+                if (qd?.enabled !== false) {
+                  const engineConfig: EngineConfig = {
+                    enabled: true,
+                    threshold: qd?.threshold ?? 0.7,
+                    responseDelayMs: qd?.responseDelayMs ?? 0,
+                    contextWindowSize: qd?.contextWindowSize ?? 30,
+                    enableFastRules: qd?.enableFastRules ?? true,
+                    enablePatterns: qd?.enablePatterns ?? true,
+                    enableContextMemory: qd?.enableContextMemory ?? true,
+                    enableClassifier: false, // skip classifier for manual trigger
+                    customPatterns: qd?.questionPatterns ?? [],
+                    classifierModel: qd?.classifierModel,
+                    gatewayUrl: 'http://localhost:4001',
+                    getAccessToken: () => null,
+                  };
+                  const engine = createQuestionDetectionEngine(engineConfig);
+                  const detected = await engine.detect(combinedText, { skipClassifier: true });
+                  if (detected.isQuestion) {
+                    onQuestionDetected?.(combinedText);
+                  }
+                }
+              }
+            } catch (err) {
+              console.error('[Continuous Transcription] Error:', err);
+            }
+          }, transcriptionInterval);
+        }
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to start capture';
+        setError(errorMessage);
+        setIsCapturing(false);
+        onError?.(err instanceof Error ? err : new Error(errorMessage));
       }
-      
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to start capture';
-      setError(errorMessage);
-      setIsCapturing(false);
-      onError?.(err instanceof Error ? err : new Error(errorMessage));
-    }
-  }, [currentSource, deviceId, onError, continuousTranscription, transcriptionInterval, currentSession, addTranscriptSegment, onTranscription, onQuestionDetected]);
+    },
+    [
+      currentSource,
+      deviceId,
+      onError,
+      continuousTranscription,
+      transcriptionInterval,
+      currentSession,
+      addTranscriptSegment,
+      onTranscription,
+      onQuestionDetected,
+    ],
+  );
 
   const stopCapture = useCallback(async () => {
     try {
@@ -184,7 +200,7 @@ export function useAudioCapture(options: UseAudioCaptureOptions = {}): UseAudioC
       const state = await audioService.stopCapture();
       setCaptureState(state);
       setIsCapturing(false);
-      
+
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
@@ -206,7 +222,7 @@ export function useAudioCapture(options: UseAudioCaptureOptions = {}): UseAudioC
       setError(null);
       const result = await audioService.transcribeAudio();
       onTranscription?.(result);
-      
+
       // Add segments to session store if we have an active session
       if (currentSession && result.segments) {
         for (const segment of result.segments) {
@@ -249,7 +265,7 @@ export function useAudioCapture(options: UseAudioCaptureOptions = {}): UseAudioC
           }
         }
       }
-      
+
       return result;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to transcribe';

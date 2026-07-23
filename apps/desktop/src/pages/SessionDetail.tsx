@@ -75,9 +75,13 @@ export default function SessionDetail() {
       if (err instanceof ApiError) {
         if (err.status === 401) message = 'Session expired \u2014 please sign in again.';
         else if (err.status === 404) message = 'Session not found.';
-        else if (err.status === 409)
-          message = (err.body as any)?.message || 'Session can no longer be modified.';
-        else if (err.status >= 500) message = 'Server error \u2014 please try again in a moment.';
+        else if (err.status === 409) {
+          // The cloud-api body shape is loose; this narrow treats `message`
+          // as optional rather than `any`. Falls back to the friendly copy
+          // when the server didn't include `message`.
+          const body = err.body as { message?: string } | null | undefined;
+          message = body?.message ?? 'Session can no longer be modified.';
+        } else if (err.status >= 500) message = 'Server error \u2014 please try again in a moment.';
         else message = err.message;
       } else if (err instanceof Error) {
         message =

@@ -4,7 +4,6 @@ import {
   GraduationCap,
   Headphones,
   Lightbulb,
-  MessageSquare,
   Sparkles,
   TrendingUp,
   UserRound,
@@ -12,7 +11,6 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { SessionType } from '@echo-gpt/shared-types';
-import { Badge } from './ui/badge';
 
 /**
  * SessionType as a color-coded badge.

@@ -1,37 +1,10 @@
 import { useState, useEffect } from 'react';
-import {
-  Puzzle,
-  Settings,
-  Shield,
-  ChevronDown,
-  ChevronRight,
-  ExternalLink,
-  Power,
-  PowerOff,
-  Plus,
-} from 'lucide-react';
-import { cn } from '../lib/utils';
+import { Puzzle, Settings, Shield, ChevronDown, ChevronRight } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
 import { Switch } from './ui/switch';
 import { usePluginStore } from '../stores/plugin';
-
-interface PluginPermission {
-  name: string;
-  description: string;
-}
-
-interface PluginEntry {
-  id: string;
-  name: string;
-  description: string;
-  version: string;
-  author: string;
-  enabled: boolean;
-  permissions: PluginPermission[];
-  settings?: Record<string, string>;
-}
 
 export default function PluginManager() {
   const { plugins, loadPlugins, enablePlugin, disablePlugin, grantPermission, revokePermission } =
