@@ -1996,3 +1996,38 @@ d903b07 feat(vision): add shared vision registry, MAX_IMAGE_BYTES cap, and locke
 
 - `apps/cloud-api`: add a `screenshots` table keyed off session id (preferred over blob-on-Session — gives us `capturedAt`, `byteSize`, `visionDetail`, `model`, `base64` columns). Endpoint `POST /api/sessions/:id/screenshots` with `{ dataUrl, byteSize, visionDetail, model }` payload.
 - `apps/desktop`: after `downscaleCanvas()` returns, call `gatewayApi.post('/sessions/:id/screenshots', { dataUrl, byteSize, visionDetail, model })` and emit a `screenshot.analyzed` WS ev
+
+## Phase 6 — Screenshot Display Bug Fix (main, after the feature → main merge)
+
+**Commit:** `9fc2308` on `origin/main` (sits on top of merge commit `cbc26fa`).
+
+**Symptom:** captured PNG screenshots were invisible in the SessionDetail Capture tab. The Rust capture succeeded (file written under `~/Pictures/EchoGPT/screenshots/screenshot_<ts>.png`), React's `lastScreenshot` state populated, but the `<img src={`file://${lastScreenshot.path}`}>` was silently blocked: the Tauri v2 WebView's CSP lacks `file:` in img-src and the capability set doesn't grant `core:asset:` scope for `~/Pictures/EchoGPT/screenshots/` (outside the app dir cross-platform).
+
+**Fix shape:**
+
+- Rust `take_screenshot` now encodes the PNG once via `image.save(&filepath)` + `fs::read(&filepath)`, holds the bytes once, writes them to disk and base64-encodes the same buffer into a `data:image/png;base64,...` `data_url` field.
+- React swaps `<img src={`file://${path}`}>` to `<img src={lastScreenshot.dataUrl}>`, bypassing the file:// scheme entirely.
+- IPC bridge: `#[serde(rename_all = "camelCase")]` at struct level keeps Rust snake_case `data_url` aligned with TS camelCase `dataUrl`; the four pre-existing single-word fields are byte-identical on the wire so the attribute is a no-op for them.
+- `path` retained on both sides for a future `shell.open()` UX (open the saved PNG in Finder/Explorer).
+
+**Cross-crate encoding decision:** rejected the natural-looking `image.write_to(&mut Cursor, ImageFormat::Png)` because `screenshots-0.8` re-exports an `image-0.24.x` whose `ImageOutputFormat` enum doesn't convert from our direct `image-0.25` `ImageFormat`. The verified path `image.save + fs::read` trades one extra ~5 MB disk read for guaranteed cross-platform compile. Cost is negligible for a user-triggered capture.
+
+**Files updated:**
+
+- `apps/desktop/src-tauri/src/screenshot.rs` — capture emits `data_url`; struct-level `#[serde(rename_all = "camelCase")]`; `#[allow(dead_code)]` + `let _ = window_title` on the placeholder `capture_window_screenshot` so it stays as future Tauri command surface without the lint warning.
+- `apps/desktop/src/services/screenshot.ts` — `ScreenshotResult.dataUrl: string` field added; `path: string` retained; JSDoc on both.
+- `apps/desktop/src/components/ScreenshotCapture.tsx` — `<img src={lastScreenshot.dataUrl}>` swap with a `{ /* Phase 6: dataUrl rationale */ }` JSX comment.
+
+**Validation:** cargo check (0 warnings), cargo build --lib (pass), desktop TypeScript typecheck (pass), 72/72 vitests stay green, desktop eslint clean on the 2 TS files.
+
+## Phase 24+ — Next up on `origin/main` (after Phase 6 lands)
+
+The Phase 23 roadmap section above stays accurate. Concretely:
+
+- **Phase 24 — Screenshot Persist + Broadcast.** Schema-first. Add a `screenshots` table to `apps/cloud-api/src/config.ts` DB init (columns: id, session_id, taken_at, mime, width, height, crop_box_json, data_url). Desktop POSTs the dataUrl to `/api/screenshots` (POST) on capture; the cloud-api persists the row + emits a `screenshot.create` event over the WS gateway to the user's paired devices. Companion + Web Portal render the thumbnail via `/api/screenshots/:id` with `Accept: image/png` + signed URL.
+- **Phase 25 — E2E Playwright.** Cover the capture → analyze → response round-trip with a stubbed vision model (see Phase 26).
+- **Phase 26 — Mock Vision Provider.** Stub provider rows in `packages/shared-config/src/providers.ts` (e.g. `mock:gpt-4o-vision`) that the gateway routes to a fixed canned response, so the test rig doesn't need OpenAI/Anthropic/Gemini keys.
+
+## Updated Next Session Prompt
+
+Resume with **Phase 24 — Screenshot Persist + Broadcast**. Read `apps/cloud-api/src/config.ts` for DB initialization and migration pattern, `packages/shared-types/src/session.ts` for existing screenshot-shaped types, and `apps/ai-gateway/src/index.ts` + `apps/cloud-api/src/index.ts` for the WS gateway broadcast conventions. Schema-first design, then the cloud-api RPC, then the desktop broadcast hook, then the Companion + Web Portal renderers. Stop after schema + RPC for user review before runtime UX work.
