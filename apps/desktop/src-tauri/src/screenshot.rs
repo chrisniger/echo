@@ -1,4 +1,3 @@
-use base64::{engine::general_purpose::STANDARD, Engine as _};
 use screenshots::Screen;
 use serde::Serialize;
 use std::fs;
