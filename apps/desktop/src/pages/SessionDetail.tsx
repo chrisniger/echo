@@ -16,6 +16,7 @@ import {
   Check,
   AlertTriangle,
   Hourglass,
+  Camera,
 } from 'lucide-react';
 import { useSessionStore } from '../stores/session';
 import { useSettingsStore } from '../stores/settings';
@@ -30,6 +31,7 @@ import Transcript from '../components/Transcript';
 import AIAssistance from '../components/AIAssistance';
 import AudioCaptureControls from '../components/AudioCaptureControls';
 import ScreenshotCapture from '../components/ScreenshotCapture';
+import CaptureModal from '../components/CaptureModal';
 import SessionExport from '../components/SessionExport';
 import { SessionTypeBadge } from '../components/SessionTypeBadge';
 import { useSessionBackground, type CooldownState } from '../hooks/useSessionBackground';
@@ -66,6 +68,12 @@ export default function SessionDetail() {
   const pushToast = useToastStore((s) => s.pushToast);
 
   const [actionLoading, setActionLoading] = useState<'pause' | 'resume' | 'end' | null>(null);
+  // Phase 6+ shortcut: Camera icon on the tabs row opens a Dialog that
+  // auto-captures the screen, bypassing the verbose Capture tab for the
+  // common 'one-click screenshot → analyze' path. The full TabCapture
+  // flow (AudioCaptureControls + ScreenshotCapture) still lives under
+  // the Capture tab for power users.
+  const [captureModalOpen, setCaptureModalOpen] = useState(false);
 
   async function handleReclassify(t: SessionType) {
     try {
@@ -417,13 +425,26 @@ export default function SessionDetail() {
       )}
 
       <Tabs defaultValue="transcript">
-        <TabsList>
-          <TabsTrigger value="transcript">Transcript ({transcript.length})</TabsTrigger>
-          <TabsTrigger value="capture">Capture</TabsTrigger>
-          <TabsTrigger value="responses">AI Responses ({aiResponses.length})</TabsTrigger>
-          <TabsTrigger value="assistant">Assistant</TabsTrigger>
-          <TabsTrigger value="details">Details</TabsTrigger>
-        </TabsList>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <TabsList>
+            <TabsTrigger value="transcript">Transcript ({transcript.length})</TabsTrigger>
+            <TabsTrigger value="capture">Capture</TabsTrigger>
+            <TabsTrigger value="responses">AI Responses ({aiResponses.length})</TabsTrigger>
+            <TabsTrigger value="assistant">Assistant</TabsTrigger>
+            <TabsTrigger value="details">Details</TabsTrigger>
+          </TabsList>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCaptureModalOpen(true)}
+            aria-label="Capture screenshot"
+            className="h-10 gap-1.5 px-3 text-sm"
+            data-testid="quick-capture-trigger"
+          >
+            <Camera className="h-4 w-4 text-indigo-500" />
+            <span className="hidden sm:inline">Capture Screenshot</span>
+          </Button>
+        </div>
 
         <TabsContent value="transcript" className="space-y-3 mt-4">
           {transcript.length > 0 ? (
@@ -599,6 +620,12 @@ export default function SessionDetail() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <CaptureModal
+        sessionId={currentSession.id}
+        open={captureModalOpen}
+        onOpenChange={setCaptureModalOpen}
+      />
     </div>
   );
 }

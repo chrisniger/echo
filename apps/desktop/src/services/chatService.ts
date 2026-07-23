@@ -5,6 +5,36 @@ import { buildContextMessages } from '../lib/context';
 import type { AiModel, ChatMessage, SessionType } from '@echo-gpt/shared-types';
 import { PREFERRED_VISION_FALLBACK, VISION_CAPABLE_MODELS } from '@echo-gpt/shared-config';
 
+/**
+ * Default vision-capable model used by the screenshot → /chat pipeline
+ * when the user-selected model is text-only (or otherwise outside
+ * VISION_CAPABLE_MODELS). Settable via the
+ * `VITE_DEFAULT_IMAGE_MODEL` env var (see apps/desktop/.env.example).
+ *
+ * Contract:
+ *   - Unset / empty / whitespace → `PREFERRED_VISION_FALLBACK` (no warn).
+ *   - Set + in VISION_CAPABLE_MODELS → that model (no warn).
+ *   - Set + NOT in VISION_CAPABLE_MODELS (typo / non-vision model) →
+ *     `PREFERRED_VISION_FALLBACK` + a single console.warn so the
+ *     operator notices.
+ *
+ * Vite inlines `import.meta.env.VITE_*` at build time, so this runs
+ * once at module load with the bundled string. Per-call reads would
+ * add no actual flexibility since swaps at runtime have no effect.
+ */
+const _rawDefaultImageModel = (import.meta.env.VITE_DEFAULT_IMAGE_MODEL ?? '').trim();
+export const DEFAULT_IMAGE_MODEL: AiModel = (() => {
+  if (_rawDefaultImageModel && VISION_CAPABLE_MODELS.has(_rawDefaultImageModel as AiModel)) {
+    return _rawDefaultImageModel as AiModel;
+  }
+  if (_rawDefaultImageModel) {
+    console.warn(
+      `[chatService] VITE_DEFAULT_IMAGE_MODEL="${_rawDefaultImageModel}" is not in VISION_CAPABLE_MODELS — falling back to ${PREFERRED_VISION_FALLBACK}.`,
+    );
+  }
+  return PREFERRED_VISION_FALLBACK;
+})();
+
 export interface ChatRequestOptions {
   sessionId: string;
   query: string;
@@ -83,14 +113,15 @@ export async function askAssistant(opts: ChatRequestOptions): Promise<ChatRespon
   //    `inline_data` / `image` natively, Phase 3 added the DashScope /
   //    Qwen-VL row as OpenAI-compatible. Anything not in the set would be
   //    silently stringified server-side, so we fall back to
-  //    `PREFERRED_VISION_FALLBACK` (defaults to 'gpt-4o-mini') to guarantee
-  //    the screenshot actually reaches the model.
+  //    `DEFAULT_IMAGE_MODEL` (env-overridable, defaults to
+  //    `PREFERRED_VISION_FALLBACK' = 'gpt-4o-mini') to guarantee the
+  //    screenshot actually reaches the model.
   let targetModel = opts.model as AiModel;
   if (opts.imageBase64 && !VISION_CAPABLE_MODELS.has(targetModel)) {
     console.warn(
-      `[chatService] Model ${targetModel} does not support vision in the current gateway. Falling back to ${PREFERRED_VISION_FALLBACK}.`,
+      `[chatService] Model ${targetModel} does not support vision in the current gateway. Falling back to ${DEFAULT_IMAGE_MODEL}.`,
     );
-    targetModel = PREFERRED_VISION_FALLBACK;
+    targetModel = DEFAULT_IMAGE_MODEL;
   }
 
   let response: ChatResponse;
