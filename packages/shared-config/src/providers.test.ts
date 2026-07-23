@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AiModel, VisionDetail } from '@echo-gpt/shared-types';
 import {
+  ALL_AI_MODELS,
   MODEL_CAPABILITIES,
   VISION_CAPABLE_MODELS,
   getVisionDetail,
@@ -9,9 +10,9 @@ import {
 
 /**
  * Single source of truth for the current vision-capable model list.
- * Phase 3 will extend this with DashScope / Opencode entries; updating
- * this list intentionally forces the author to audit whether each new
- * model should advertise vision support.
+ * Phase 3 added the DashScope / Qwen-VL rows; future union expansions
+ * extend this list intentionally so the author must audit whether each
+ * new model advertises vision support.
  */
 const CURRENT_VISION_MODELS: readonly AiModel[] = [
   // OpenAI GPT-4 family
@@ -30,6 +31,13 @@ const CURRENT_VISION_MODELS: readonly AiModel[] = [
   'gemini-2.0-pro',
   'gemini-1.5-pro',
   'gemini-1.5-flash',
+  // DashScope / Qwen-VL — flagships get 'high', efficient variants get 'auto'
+  'qwen-vl-max',
+  'qwen-vl-plus',
+  'qwen2.5-vl-72b-instruct',
+  'qwen2.5-vl-7b-instruct',
+  'qwen3-vl-235b-a22b-instruct',
+  'qwen3-vl-plus',
   // OpenRouter (dynamic)
   'openrouter/auto',
 ];
@@ -100,6 +108,16 @@ describe('getVisionDetail()', () => {
   });
 });
 
+describe('ALL_AI_MODELS derived list', () => {
+  it('matches every AiModel union member (one-to-one with MODEL_CAPABILITIES keys)', () => {
+    // Guard against future union additions that forget MODEL_CAPABILITIES.
+    expect(ALL_AI_MODELS.length).toBe(Object.keys(MODEL_CAPABILITIES).length);
+    for (const model of Object.keys(MODEL_CAPABILITIES) as AiModel[]) {
+      expect(ALL_AI_MODELS, `missing ${model}`).toContain(model);
+    }
+  });
+});
+
 describe('MODEL_CAPABILITIES coverage', () => {
   it('exposes a visionDetail for every row (uniform union shape)', () => {
     // Guards the Phase 1 fix where `as const satisfies Record<AiModel, …>`
@@ -109,5 +127,20 @@ describe('MODEL_CAPABILITIES coverage', () => {
       const row = MODEL_CAPABILITIES[model];
       expect(row.visionDetail, `model=${model}`).toBeDefined();
     }
+  });
+
+  it('flags DashScope flagship VL models with "high" detail', () => {
+    // Locks the Phase 3 wiring: each new VL flagship row gets `high` so
+    // the desktop downscaler does not silently downsample screenshots
+    // meant for the highest-tier Qwen-VL runs.
+    expect(MODEL_CAPABILITIES['qwen-vl-max'].visionDetail).toBe('high');
+    expect(MODEL_CAPABILITIES['qwen2.5-vl-72b-instruct'].visionDetail).toBe('high');
+    expect(MODEL_CAPABILITIES['qwen3-vl-235b-a22b-instruct'].visionDetail).toBe('high');
+  });
+
+  it('flags DashScope efficient VL models with "auto" detail', () => {
+    expect(MODEL_CAPABILITIES['qwen-vl-plus'].visionDetail).toBe('auto');
+    expect(MODEL_CAPABILITIES['qwen2.5-vl-7b-instruct'].visionDetail).toBe('auto');
+    expect(MODEL_CAPABILITIES['qwen3-vl-plus'].visionDetail).toBe('auto');
   });
 });

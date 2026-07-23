@@ -24,6 +24,17 @@ export const PROVIDER_DEFAULTS: Record<AiProvider, { baseUrl: string; models: Ai
     baseUrl: 'https://api.deepseek.com/v1',
     models: ['deepseek-chat', 'deepseek-coder', 'deepseek-reasoner'],
   },
+  dashscope: {
+    baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    models: [
+      'qwen-vl-max',
+      'qwen-vl-plus',
+      'qwen2.5-vl-72b-instruct',
+      'qwen2.5-vl-7b-instruct',
+      'qwen3-vl-235b-a22b-instruct',
+      'qwen3-vl-plus',
+    ],
+  },
   openrouter: {
     baseUrl: 'https://openrouter.ai/api/v1',
     models: ['openrouter/auto'],
@@ -39,6 +50,7 @@ export const PROVIDER_PRIORITY: AiProvider[] = [
   'anthropic',
   'gemini',
   'deepseek',
+  'dashscope',
   'openrouter',
   'ollama',
 ];
@@ -60,8 +72,8 @@ export const TOKEN_LIMITS = {
  * the `satisfies Record<AiModel, …>` constraint catches union drift at
  * compile time — extending the union forces an update here.
  *
- * Phase 3 will append DashScope / Opencode rows alongside the type union
- * expansion.
+ * Phase 3 added the DashScope / Qwen-VL rows; Opencode rows land in a
+ * later phase.
  */
 export const MODEL_CAPABILITIES = {
   // OpenAI GPT family
@@ -92,6 +104,18 @@ export const MODEL_CAPABILITIES = {
   // OpenRouter — see VISION_CAPABLE_MODELS note about dynamic routing.
   'openrouter/auto': { vision: true, visionDetail: 'auto' },
 
+  // DashScope / Qwen — Alibaba Cloud's OpenAI-compatible endpoint. All
+  // current DashScope models in the union are VL variants; the flagship
+  // tier (qwen-vl-max, qwen2.5-vl-72b-instruct, qwen3-vl-235b-a22b-instruct)
+  // gets `high` detail because the parameter count justifies the token
+  // cost; the lighter variants stay at `auto`.
+  'qwen-vl-max': { vision: true, visionDetail: 'high' },
+  'qwen-vl-plus': { vision: true, visionDetail: 'auto' },
+  'qwen2.5-vl-72b-instruct': { vision: true, visionDetail: 'high' },
+  'qwen2.5-vl-7b-instruct': { vision: true, visionDetail: 'auto' },
+  'qwen3-vl-235b-a22b-instruct': { vision: true, visionDetail: 'high' },
+  'qwen3-vl-plus': { vision: true, visionDetail: 'auto' },
+
   // Ollama — local models default to text-only here. Vision-capable
   // Ollama models (e.g. llava) can be added when the AiModel union is
   // expanded for them.
@@ -100,6 +124,14 @@ export const MODEL_CAPABILITIES = {
   'ollama/qwen2.5': { vision: false, visionDetail: 'auto' },
   'ollama/codellama': { vision: false, visionDetail: 'auto' },
 } as const satisfies Record<AiModel, ModelCapabilities>;
+
+/**
+ * Every `AiModel` union member, derived from `MODEL_CAPABILITIES` so the
+ * two cannot drift. Used by the AI gateway's `/chat` zod schema (the
+ * model whitelist is no longer hand-maintained) and as the canonical
+ * enumeration order for UI dropdowns / persistence helpers.
+ */
+export const ALL_AI_MODELS: readonly AiModel[] = Object.keys(MODEL_CAPABILITIES) as AiModel[];
 
 /**
  * Set of models that accept vision input (`image_url` content parts in
@@ -114,9 +146,8 @@ export const MODEL_CAPABILITIES = {
  *  - the desktop chat service (Phase 4) to retire the hard-coded
  *    `VISION_SUPPORTED_MODELS` array in `chatService.ts`.
  *
- * Phase 3 will append DashScope (Qwen-VL, Qwen2.5-VL, Qwen3-VL) and
- * Opencode vision rows via `MODEL_CAPABILITIES` once their `AiModel`
- * union members are introduced in `packages/shared-types/src/gateway.ts`.
+ * Phase 3 added the DashScope (Qwen-VL, Qwen2.5-VL, Qwen3-VL) rows.
+ * Opencode vision comes in a later phase.
  */
 export const VISION_CAPABLE_MODELS: ReadonlySet<AiModel> = new Set(
   (Object.keys(MODEL_CAPABILITIES) as AiModel[]).filter(

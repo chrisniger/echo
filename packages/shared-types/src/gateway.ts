@@ -1,4 +1,5 @@
-export type AiProvider = 'openai' | 'anthropic' | 'gemini' | 'deepseek' | 'openrouter' | 'ollama';
+export type AiProvider =
+  'openai' | 'anthropic' | 'gemini' | 'deepseek' | 'dashscope' | 'openrouter' | 'ollama';
 
 export type AiModel =
   | 'gpt-4o'
@@ -18,6 +19,12 @@ export type AiModel =
   | 'deepseek-chat'
   | 'deepseek-coder'
   | 'deepseek-reasoner'
+  | 'qwen-vl-max'
+  | 'qwen-vl-plus'
+  | 'qwen2.5-vl-72b-instruct'
+  | 'qwen2.5-vl-7b-instruct'
+  | 'qwen3-vl-235b-a22b-instruct'
+  | 'qwen3-vl-plus'
   | 'openrouter/auto'
   | 'ollama/llama3'
   | 'ollama/mixtral'
